@@ -1,0 +1,9 @@
+streamlit
+serpapi
+requests
+groq
+transformers
+pandas
+plotly4.1
+folium
+streamlit-folium
