@@ -1,5 +1,7 @@
+
 import streamlit as st
 import serpapi
+import requests
 from groq import Groq
 from transformers import pipeline
 import pandas as pd
@@ -9,33 +11,14 @@ from streamlit_folium import folium_static
 from datetime import datetime
 import json
 import random
-import os
-from dotenv import load_dotenv
-import logging
-import timeout_decorator
-
-# Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
-
-# Set page config
-st.set_page_config(
-    page_title="🚀 AI Genesis: Disaster Response",
-    layout="wide",
-    page_icon="🌪️",
-    initial_sidebar_state="expanded"
-)
 
 # --- 🌟 CONSTANTS ---
 DEMO_DATA = {
     "hurricane": {
         "news": [
-            {"title": "Category 4 Hurricane Makes Landfall", "snippet": "Winds up to 130 mph reported in coastal areas", "link": "https://www.floridadisaster.org"},
-            {"title": "Evacuations Underway", "snippet": "Over 1 million residents ordered to evacuate", "link": "https://www.fema.gov"},
-            {"title": "Emergency Declared", "snippet": "National Guard deployed to affected regions", "link": "https://www.weather.gov"}
+            {"title": "Category 4 Hurricane Makes Landfall", "snippet": "Winds up to 130 mph reported in coastal areas", "link": "#"},
+            {"title": "Evacuations Underway", "snippet": "Over 1 million residents ordered to evacuate", "link": "#"},
+            {"title": "Emergency Declared", "snippet": "National Guard deployed to affected regions", "link": "#"}
         ],
         "geo": {"lat": "27.6648", "lon": "-81.5158", "display_name": "Florida, USA"}
     },
@@ -49,390 +32,206 @@ DEMO_DATA = {
     }
 }
 
+# --- 🔐 Initialize API Clients with Secrets ---
+try:
+    groq = Groq(api_key=st.secrets.get("GROQ_API_KEY", "default-key"))
+    SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "default-key")
+except Exception as e:
+    st.error(f"Failed to initialize API clients: {str(e)}")
+    st.stop()
+
 # --- 🧠 AI Model Initialization ---
 @st.cache_resource
-@timeout_decorator.timeout(300, timeout_exception=TimeoutError)  # 5-minute timeout
 def load_ai_models():
     try:
-        logger.debug("Loading AI models...")
-        models = {
+        return {
             "disaster_clf": pipeline("text-classification", model="distilbert-base-uncased"),
             "ner": pipeline("ner", model="dslim/bert-base-NER"),
             "sentiment": pipeline("sentiment-analysis", model="finiteautomata/bertweet-base-sentiment-analysis")
         }
-        logger.debug("AI models loaded successfully.")
-        return models
     except Exception as e:
-        logger.error(f"Failed to load AI models: {str(e)}")
-        st.error(f"Failed to load AI models: {str(e)}. Using fallback data.")
+        st.error(f"Failed to load AI models: {str(e)}")
         return None
 
-try:
-    models = load_ai_models()
-except TimeoutError:
-    logger.error("Model loading timed out after 5 minutes.")
-    st.error("Model loading timed out after 5 minutes. Using fallback data.")
-    models = None
-
+models = load_ai_models()
 if models is None:
-    st.warning("Running without AI models. Output will use default demo data.")
-
-# Initialize Groq
-try:
-    groq_api_key = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY", ""))
-    if not groq_api_key:
-        raise ValueError("GROQ_API_KEY is missing.")
-    logger.debug("Initializing Groq client...")
-    groq = Groq(api_key=groq_api_key)
-    logger.debug("Groq client initialized.")
-except Exception as e:
-    logger.error(f"Failed to initialize Groq client: {str(e)}")
-    st.error(f"Failed to initialize Groq client: {str(e)}. Running in demo mode only.")
-    groq = None
+    st.stop()
 
 # --- 🛰️ Data Fetching ---
 def fetch_disaster_data(query, demo_mode=False):
-    logger.debug(f"Fetching data for query: {query}, demo_mode: {demo_mode}")
-    if demo_mode or groq is None:
-        st.info("Using demo data due to demo mode or Groq failure.")
+    if demo_mode:
         disaster_type = random.choice(list(DEMO_DATA.keys()))
-        logger.debug(f"Returning demo data for {disaster_type}")
         return DEMO_DATA[disaster_type]
     
     try:
-        serpapi_key = st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", ""))
-        if not serpapi_key:
-            raise ValueError("SERPAPI_KEY is missing.")
-        logger.debug("Querying SerpAPI...")
         news = serpapi.search({
             "q": f"{query} disaster",
-            "api_key": serpapi_key,
+            "api_key": SERPAPI_KEY,
             "engine": "google_news",
             "num": 3
         }).get('news_results', [])[:3]
         
-        # Use demo geo data
-        geo_data = DEMO_DATA.get("hurricane" if "hurricane" in query.lower() else "earthquake", {}).get("geo")
+        geo_data = requests.get(
+            f"https://nominatim.openstreetmap.org/search?q={query}&format=json"
+        ).json()
         
-        if not news:
-            st.warning("No news results from SerpAPI. Using demo data.")
-            logger.debug("No news results, using demo data.")
-            return DEMO_DATA["hurricane"]
-        
-        logger.debug("Data fetched successfully.")
         return {
             "news": [n for n in news if n.get('title')],
-            "geo": geo_data
+            "geo": geo_data[0] if geo_data else None
         }
     except Exception as e:
-        logger.error(f"Data fetch error: {str(e)}")
-        st.error(f"Data fetch error: {str(e)}. Using demo data.")
-        return DEMO_DATA["hurricane"]
+        st.error(f"Data fetch error: {str(e)}")
+        return {"news": [], "geo": None}
 
 # --- 🤖 AI Analysis Engine ---
 def analyze_disaster(query, news_texts, geo_data):
-    logger.debug("Starting disaster analysis...")
     try:
         # Entity Recognition
-        locations = []
-        if models:
-            try:
-                logger.debug("Running NER...")
-                entities = models["ner"](" ".join(news_texts))
-                locations = list({e['word'] for e in entities if e['entity'].startswith('B-LOC') or e['entity'].startswith('I-LOC')})
-                logger.debug(f"Extracted locations: {locations}")
-            except Exception as e:
-                logger.warning(f"Location extraction failed: {str(e)}")
-                st.warning(f"Location extraction failed: {str(e)}")
+        entities = models["ner"](" ".join(news_texts))
+        locations = list({e['word'] for e in entities if e['entity'] in ['B-LOC','I-LOC']})
         
-        # Disaster Classification
-        if groq is None:
-            disaster_analysis = {
-                "type": "Category 4 Hurricane" if "hurricane" in query.lower() else "Unknown Disaster",
-                "severity": 9,
-                "severity_rationale": "High impact based on demo data."
-            }
-            logger.debug("Using default disaster analysis (no Groq).")
-        else:
-            disaster_prompt = f"""
-            Analyze this disaster scenario and provide specific classification:
-            News Headlines: {news_texts[:2]}
-            
-            Respond with valid JSON containing:
-            - "type": specific disaster type (e.g., "Category 4 Hurricane")
-            - "severity": integer from 1 to 10
-            - "severity_rationale": brief explanation
-            Ensure all keys are double-quoted and values are properly formatted.
-            """
-            
-            try:
-                logger.debug("Querying Groq for disaster analysis...")
-                disaster_analysis = groq.chat.completions.create(
-                    model="llama3-70b-8192",
-                    messages=[{"role": "user", "content": disaster_prompt}],
-                    response_format={"type": "json_object"},
-                    temperature=0.3,
-                    timeout=30
-                ).choices[0].message.content
-                disaster_analysis = json.loads(disaster_analysis)
-                logger.debug("Groq disaster analysis completed.")
-            except Exception as e:
-                logger.warning(f"Groq disaster analysis failed: {str(e)}")
-                st.warning(f"Groq disaster analysis failed: {str(e)}. Using default analysis.")
-                disaster_analysis = {
-                    "type": "Category 4 Hurricane" if "hurricane" in query.lower() else "Unknown Disaster",
-                    "severity": 9,
-                    "severity_rationale": "High impact based on news reports."
-                }
+        # Disaster Classification with Groq
+        disaster_prompt = f"""
+        Analyze this disaster scenario:
+        News Headlines: {news_texts[:2]}
+        
+        Respond with JSON containing:
+        - "type": specific disaster type
+        - "severity": 1-10 scale
+        - "severity_rationale": brief explanation
+        """
+        
+        disaster_analysis = groq.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[{"role": "user", "content": disaster_prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.3
+        ).choices[0].message.content
+        
+        disaster_analysis = json.loads(disaster_analysis)
         
         # Generate Response Plan
-        if groq is None:
-            response_plan = {
-                "timeline": [
-                    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Hurricane landfall reported",
-                    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Peak storm surge observed",
-                    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Storm begins to subside"
-                ],
-                "actions": [
-                    "Evacuate high-risk areas, especially coastal and flood-prone zones.",
-                    "Activate emergency services, including responders and rescue teams.",
-                    "Establish communication networks for affected areas."
-                ],
-                "resources": [
-                    "Food and water (100,000 units)",
-                    "Medical supplies (50,000 units)",
-                    "Generators and fuel (500 units)"
-                ],
-                "sentiment": "Anxious and fearful due to severe disaster impact"
-            }
-            logger.debug("Using default response plan (no Groq).")
-        else:
-            response_prompt = f"""
-            Generate a detailed response plan for:
-            Disaster: {disaster_analysis['type']}
-            Severity: {disaster_analysis['severity']}/10
-            Locations: {locations or 'None'}
-            
-            Provide valid JSON with:
-            - "timeline": ["3 critical events with timestamps in format YYYY-MM-DD HH:MM:SS"]
-            - "actions": ["3 prioritized actions"]
-            - "resources": ["3 most needed resources"]
-            - "sentiment": "analysis of public mood"
-            Ensure all keys are double-quoted and values are properly formatted.
-            """
-            
-            try:
-                logger.debug("Querying Groq for response plan...")
-                response_plan = groq.chat.completions.create(
-                    model="llama3-70b-8192",
-                    messages=[{"role": "user", "content": response_prompt}],
-                    response_format={"type": "json_object"},
-                    temperature=0.3,
-                    timeout=30
-                ).choices[0].message.content
-                response_plan = json.loads(response_plan)
-                logger.debug("Groq response plan completed.")
-            except Exception as e:
-                logger.error(f"Groq response plan failed: {str(e)}")
-                st.error(f"Groq response plan failed: {str(e)}. Using default response plan.")
-                response_plan = {
-                    "timeline": [
-                        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Hurricane landfall reported",
-                        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Peak storm surge observed",
-                        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Storm begins to subside"
-                    ],
-                    "actions": [
-                        "Evacuate high-risk areas, especially coastal and flood-prone zones.",
-                        "Activate emergency services, including responders and rescue teams.",
-                        "Establish communication networks for affected areas."
-                    ],
-                    "resources": [
-                        "Food and water (100,000 units)",
-                        "Medical supplies (50,000 units)",
-                        "Generators and fuel (500 units)"
-                    ],
-                    "sentiment": "Anxious and fearful due to severe disaster impact"
-                }
+        response_prompt = f"""
+        Generate response plan for:
+        Disaster: {disaster_analysis['type']}
+        Severity: {disaster_analysis['severity']}/10
+        Locations: {locations}
         
-        # Sentiment Analysis
-        sentiment_label, sentiment_score = "Neutral", 0.5
-        if models:
-            try:
-                logger.debug("Running sentiment analysis...")
-                sentiment = models["sentiment"](" ".join(news_texts[:3]))
-                sentiment_label = sentiment[0]["label"]
-                sentiment_score = sentiment[0]["score"]
-                logger.debug(f"Sentiment: {sentiment_label}, Score: {sentiment_score}")
-            except:
-                logger.warning("Sentiment analysis failed.")
-                st.warning("Sentiment analysis failed.")
+        Provide JSON with:
+        - "timeline": ["3 critical events"]
+        - "actions": ["3 prioritized actions"]
+        - "resources": ["3 needed resources"]
+        """
         
-        logger.debug("Analysis completed successfully.")
+        response_plan = groq.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[{"role": "user", "content": response_prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.3
+        ).choices[0].message.content
+        
         return {
             **disaster_analysis,
-            **response_plan,
+            **json.loads(response_plan),
             "locations": locations,
-            "geo": geo_data,
-            "sentiment_label": sentiment_label,
-            "sentiment_score": sentiment_score
+            "geo": geo_data
         }
     except Exception as e:
-        logger.error(f"Analysis failed: {str(e)}")
-        st.error(f"Analysis failed: {str(e)}. Please try again.")
+        st.error(f"Analysis failed: {str(e)}")
         return None
 
 # --- 🎨 Streamlit UI ---
-# Sidebar Configuration
+st.set_page_config(
+    page_title="🚀 AI Disaster Response",
+    layout="wide",
+    page_icon="🌪️"
+)
+
+# Sidebar
 with st.sidebar:
-    st.image("https://images.unsplash.com/photo-1535223289827-42f1e9919769?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80", width=100, caption="Hurricane Satellite View")
+    st.image("https://i.imgur.com/JQ0w7wv.png", width=100)
     st.title("AI Genesis")
-    st.markdown("**LabLab AI Hackathon Entry**")
+    demo_mode = st.checkbox("Demo Mode", value=True)
     st.markdown("---")
-    demo_mode = st.checkbox("Demo Mode (Use sample data)", value=True)
-    st.markdown("---")
-    st.markdown("### 🛠️ Models Used")
+    st.markdown("### Models Used")
     st.markdown("- DistilBERT (Classification)")
     st.markdown("- BERT-NER (Location Extraction)")
     st.markdown("- Llama3-70B (Analysis)")
-    st.markdown("---")
-    st.markdown("### 🔗 Links")
-    st.markdown("[Working Demo](https://your-streamlit-app-url.streamlit.app) *(Update after deployment)*")
-    st.markdown("[GitHub Repo](https://github.com/your-username/ai-powered-disaster-response-system)")
-    st.markdown("---")
-    st.markdown("Made with ❤️ for /execute: AI Genesis")
 
 # Main Interface
-st.image("https://images.pexels.com/photos/6422823/pexels-photo-6422823.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", caption="Emergency Response in Action")
-st.title("🌪️ AI-Powered Disaster Response System")
+st.title("🌪️ AI-Powered Disaster Response")
 st.markdown("Real-time disaster intelligence with multi-model AI analysis")
 
 # Input Section
 query = st.text_input(
     "📍 Enter Disaster Location/Event:", 
-    placeholder="e.g., Florida Hurricane 2025",
-    help="Enter a location or specific disaster event"
+    placeholder="e.g., Florida Hurricane 2025"
 )
 
-if st.button("🚀 Launch AI Analysis", type="primary"):
-    if not query:
-        st.error("Please enter a disaster query.")
-    else:
-        with st.spinner("🛰️ Gathering real-time intelligence..."):
-            try:
-                logger.debug("Starting analysis for query: %s", query)
-                # Data Collection
-                data = fetch_disaster_data(query, demo_mode=demo_mode)
-                logger.debug("Data fetched: %s", data)
-                news_texts = [f"{n['title']}: {n.get('snippet', '')}" for n in data["news"]]
-                
-                if not news_texts:
-                    logger.error("No valid news sources found.")
-                    st.error("No valid news sources found. Try another query or enable Demo Mode.")
-                    st.stop()
-                
-                # AI Analysis
-                analysis = analyze_disaster(query, news_texts, data["geo"])
-                logger.debug("Analysis result: %s", analysis)
-                if analysis is None:
-                    logger.error("Analysis returned no results.")
-                    st.error("Analysis returned no results. Please try again.")
-                    st.stop()
-                
-                # --- Results Dashboard ---
-                st.success("✅ AI Analysis Complete!")
-                
-                # Severity Alert
-                severity_color = "red" if analysis["severity"] > 7 else "orange" if analysis["severity"] > 4 else "green"
-                st.markdown(f"""
-                <div style="background:{severity_color}; padding:15px; border-radius:10px; color:white; margin-bottom:20px;">
-                    <h2 style="margin:0;">🚨 {analysis['type'].upper()} DETECTED</h2>
-                    <h1 style="margin:0; text-align:center;">SEVERITY: {analysis['severity']}/10</h1>
-                    <p style="margin:0;"><i>{analysis['severity_rationale']}</i></p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Map Visualization
-                if analysis["geo"]:
-                    col1, col2 = st.columns([2, 1])
-                    with col1:
-                        try:
-                            m = folium.Map(
-                                location=[float(analysis["geo"]["lat"]), float(analysis["geo"]["lon"])],
-                                zoom_start=7,
-                                tiles="Stamen Terrain"
-                            )
-                            folium.Marker(
-                                [analysis["geo"]["lat"], analysis["geo"]["lon"]],
-                                popup=f"<b>{query}</b><br>Severity: {analysis['severity']}/10",
-                                icon=folium.Icon(color=severity_color, icon="cloud")
-                            ).add_to(m)
-                            folium_static(m)
-                        except:
-                            logger.warning("Map rendering failed.")
-                            st.warning("Map rendering failed.")
-                    
-                    with col2:
-                        st.metric("📍 Primary Location", analysis["geo"].get("display_name", "Unknown"))
-                        st.metric("🌍 Coordinates", f"{analysis['geo']['lat']}, {analysis['geo']['lon']}")
-                        st.metric("📌 Other Locations", len(analysis["locations"]))
-                
-                # Timeline and Actions
-                tab1, tab2, tab3 = st.tabs([
-                    "📅 Timeline",
-                    "🛠️ Response Plan",
-                    "📰 News Sources"
-                ])
-                
-                with tab1:
-                    st.image("https://images.pexels.com/photos/3184297/pexels-photo-3184297.jpeg?auto=compress&cs=tinysrgb&w=100", width=100, caption="Timeline")
-                    st.subheader("Critical Events Timeline")
-                    for event in analysis["timeline"]:
-                        st.markdown(f"⏱️ {event}")
-                
-                with tab2:
-                    st.image("https://images.pexels.com/photos/3184287/pexels-photo-3184287.jpeg?auto=compress&cs=tinysrgb&w=100", width=100, caption="Response Plan")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.subheader("Priority Actions")
-                        for action in analysis["actions"]:
-                            st.markdown(f"✅ {action}")
-                    with col2:
-                        st.subheader("Resources Needed")
-                        for resource in analysis["resources"]:
-                            st.markdown(f"📦 {resource}")
-                    
-                    st.markdown("---")
-                    st.subheader("Public Sentiment Analysis")
-                    st.write(f"Overall mood: **{analysis['sentiment_label']}** (confidence: {analysis['sentiment_score']:.0%})")
-                
-                with tab3:
-                    st.image("https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=100", width=100, caption="News")
-                    for news in data["news"]:
-                        st.markdown(f"""
-                        ### {news['title']}
-                        {news.get('snippet', '')}
-                        *[Source]({news.get('link', 'https://www.fema.gov')})*
-                        """)
-                        st.markdown("---")
-                
-                logger.debug("Results dashboard rendered successfully.")
-            except Exception as e:
-                logger.error(f"Processing failed: {str(e)}")
-                st.error(f"Processing failed: {str(e)}. Please check logs or try again.")
+if st.button("🚀 Launch Analysis", type="primary"):
+    with st.spinner("🛰️ Gathering intelligence..."):
+        data = fetch_disaster_data(query, demo_mode=demo_mode)
+        news_texts = [f"{n['title']}: {n.get('snippet', '')}" for n in data["news"]]
+        
+        if not news_texts:
+            st.error("No valid news sources found.")
+            st.stop()
+            
+        analysis = analyze_disaster(query, news_texts, data["geo"])
+        if analysis is None:
+            st.stop()
+        
+        # Results Dashboard
+        st.success("✅ Analysis Complete!")
+        
+        # Severity Alert
+        severity_color = "red" if analysis["severity"] > 7 else "orange" if analysis["severity"] > 4 else "green"
+        st.markdown(f"""
+        <div style="background:{severity_color}; padding:15px; border-radius:10px; color:white; margin-bottom:20px;">
+            <h2 style="margin:0;">🚨 {analysis['type'].upper()}</h2>
+            <h1 style="margin:0; text-align:center;">SEVERITY: {analysis['severity']}/10</h1>
+            <p style="margin:0;"><i>{analysis['severity_rationale']}</i></p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Map Visualization
+        if analysis["geo"]:
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                m = folium.Map(
+                    location=[float(analysis["geo"]["lat"]), float(analysis["geo"]["lon"])], 
+                    zoom_start=7
+                )
+                folium.Marker(
+                    [analysis["geo"]["lat"], analysis["geo"]["lon"]],
+                    popup=f"<b>{query}</b>",
+                    icon=folium.Icon(color=severity_color)
+                ).add_to(m)
+                folium_static(m)
+            
+            with col2:
+                st.metric("📍 Location", analysis["geo"].get("display_name", "Unknown"))
+                st.metric("🌍 Coordinates", f"{analysis['geo']['lat']}, {analysis['geo']['lon']}")
+        
+        # Timeline and Actions
+        tab1, tab2 = st.tabs(["📅 Timeline", "🛠️ Response Plan"])
+        
+        with tab1:
+            st.subheader("Critical Events")
+            for event in analysis["timeline"]:
+                st.markdown(f"⏱️ {event}")
+        
+        with tab2:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("Priority Actions")
+                for action in analysis["actions"]:
+                    st.markdown(f"✅ {action}")
+            with col2:
+                st.subheader("Resources Needed")
+                for resource in analysis["resources"]:
+                    st.markdown(f"📦 {resource}")
 
 # Footer
 st.markdown("---")
-st.markdown("""
-### 🏆 Hackathon Compliance
-✅ **Multi-Model AI** (DistilBERT, BERT-NER, Llama3-70B)  
-✅ **Real-Time Data** (SerpAPI)  
-✅ **Advanced Visualization** (Interactive maps + timelines)  
-✅ **Professional UI** (Streamlit + Plotly + Folium)  
-✅ **Complete Documentation**  
-""")
-st.markdown("""
-### 📸 Image Credits
-- Sidebar: [Unsplash](https://unsplash.com/photos/hurricane-satellite-view-4ZJZg9pG9kA)
-- Header: [Pexels](https://www.pexels.com/photo/emergency-response-team-6422823/)
-- Tabs: [Pexels](https://www.pexels.com)
-""")
+st.markdown("Built for /execute: AI Genesis Hackathon")
