@@ -188,10 +188,3 @@ if st.button("🚀 Launch AI Analysis"):
         news_texts = [f"{n['title']}: {n.get('snippet', '')}" for n in data["news"]]
         analysis = analyze_disaster(query, news_texts, data["geo"])
         st.json(analysis)
-'''
-
-# Write the code to app.py
-with open(main_file_path, "w") as f:
-    f.write(streamlit_code)
-
-project_dir
