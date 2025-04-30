@@ -1,6 +1,5 @@
 import streamlit as st
 import serpapi
-import requests
 from groq import Groq
 from transformers import pipeline
 import pandas as pd
@@ -11,6 +10,10 @@ from datetime import datetime
 import json
 import random
 import os
+from dotenv import load_dotenv
+
+# Load environment variables (mimics your previous method)
+load_dotenv()
 
 # Set page config as the FIRST Streamlit command
 st.set_page_config(
@@ -51,9 +54,10 @@ def load_ai_models():
 
 models = load_ai_models()
 
-# Initialize Groq with error handling
+# Initialize Groq with error handling (mimics os.getenv with Streamlit compatibility)
 try:
-    groq = Groq(api_key=st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY", "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")))
+    groq_api_key = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY", "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"))
+    groq = Groq(api_key=groq_api_key)
 except Exception as e:
     st.error(f"Failed to initialize Groq client: {str(e)}. Running in demo mode only.")
     groq = None
@@ -65,24 +69,23 @@ def fetch_disaster_data(query, demo_mode=False):
         return DEMO_DATA[disaster_type]
     
     try:
+        serpapi_key = st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", "39a147d2d97b7b81d98fe00e15a15edfa4e701f465c2f46df26ed534ef2cbd50"))
         news = serpapi.search({
             "q": f"{query} disaster",
-            "api_key": st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", "39a147d2d97b7b81d98fe00e15a15edfa4e701f465c2f46df26ed534ef2cbd50")),
+            "api_key": serpapi_key,
             "engine": "google_news",
             "num": 3
         }).get('news_results', [])[:3]
         
-        geo_data = requests.get(
-            f"https://nominatim.openstreetmap.org/search?q={query}&format=json",
-            headers={"User-Agent": "AI-Genesis-Hackathon"}
-        ).json()
+        # Use demo geo data as fallback (no OpenStreetMap API)
+        geo_data = DEMO_DATA.get("hurricane" if "hurricane" in query.lower() else "earthquake", {}).get("geo")
         
         if not news:
             raise ValueError("No news results returned from SerpAPI.")
         
         return {
             "news": [n for n in news if n.get('title')],
-            "geo": geo_data[0] if geo_data else None
+            "geo": geo_data
         }
     except Exception as e:
         st.error(f"Data fetch error: {str(e)}. Using demo data.")
@@ -231,7 +234,7 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🔗 Links")
     st.markdown("[Working Demo](https://your-streamlit-app-url.streamlit.app) *(Update after deployment)*")
-    st.markdown("[GitHub Repo](https://github.com/your-username/ai-genesis-disaster-response)")
+    st.markdown("[GitHub Repo](https://github.com/your-username/ai-powered-disaster-response-system)")
     st.markdown("---")
     st.markdown("Made with ❤️ for /execute: AI Genesis")
 
@@ -344,7 +347,7 @@ st.markdown("---")
 st.markdown("""
 ### 🏆 Hackathon Compliance
 ✅ **Multi-Model AI** (DistilBERT, BERT-NER, Llama3-70B)  
-✅ **Real-Time Data** (SerpAPI + OpenStreetMap)  
+✅ **Real-Time Data** (SerpAPI)  
 ✅ **Advanced Visualization** (Interactive maps + timelines)  
 ✅ **Professional UI** (Streamlit + Plotly + Folium)  
 ✅ **Complete Documentation**  
