@@ -315,7 +315,7 @@ st.markdown("""
 """)
 st.markdown("""
 ### 📸 Image Credits
-- Sidebar: [Unsplash](https://unsplash.com/photos/hurricane-satellite-view-4ZJZg9pG9kA)
-- Header: [Pexels](https://www.pexels.com/photo/emergency-response-team-6422823/)
+- Sidebar: [Unsplash](https://media.istockphoto.com/id/2035571068/photo/dynamic-digital-world-map-emphasize-western-europe-continental-for-ai-powered-global-network.jpg?s=1024x1024&w=is&k=20&c=dBwwelUFib398yhYPTT9Y5UbloXGXfcoBWpo-m6oDYM=)
+- Header: [Pexels](https://media.istockphoto.com/id/1452316636/photo/paramedics-taking-patient-on-stretcher-from-ambulance-to-hospital.jpg?s=1024x1024&w=is&k=20&c=hiJRZkNtjfQDl4PeQp_wmBfIxzSQ-uEPVHWMNosJ2-Q=)
 - Tabs: [Pexels](https://www.pexels.com)
 """)
