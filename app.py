@@ -1,5 +1,4 @@
 import streamlit as st
-import serpapi
 import requests
 import os
 from groq import Groq
@@ -50,7 +49,7 @@ def load_ai_models():
     }
 
 models = load_ai_models()
-groq = Groq(api_key="GROQ-API")
+groq = Groq(api_key=os.getenv("GROQ_API"))
 
 # --- 🛰️ Data Fetching ---
 def fetch_disaster_data(query, demo_mode=False):
@@ -59,20 +58,20 @@ def fetch_disaster_data(query, demo_mode=False):
         return DEMO_DATA[disaster_type]
     
     try:
-        news = serpapi.search({
+        from serpapi import GoogleSearch
+        search = GoogleSearch({
             "q": f"{query} disaster",
-            "api_key": SERP-API",
+            "api_key": os.getenv("SERP_API"),
             "engine": "google_news",
             "num": 3
-        }).get('news_results', [])[:3]
+        })
+        results = search.get_dict()
+        news = results.get('news_results', [])[:3]
         
         geo_data = requests.get(
             f"https://nominatim.openstreetmap.org/search?q={query}&format=json",
             headers={"User-Agent": "AI-Genesis-Hackathon"}
         ).json()
-        
-        if not news:
-            raise ValueError("No news results returned from SerpAPI.")
         
         return {
             "news": [n for n in news if n.get('title')],
@@ -84,7 +83,6 @@ def fetch_disaster_data(query, demo_mode=False):
 
 # --- 🤖 AI Analysis Engine ---
 def analyze_disaster(query, news_texts, geo_data):
-    # Entity Recognition
     try:
         entities = models["ner"](" ".join(news_texts))
         locations = list({e['word'] for e in entities if e['entity'].startswith('B-LOC') or e['entity'].startswith('I-LOC')})
@@ -92,16 +90,14 @@ def analyze_disaster(query, news_texts, geo_data):
         locations = []
         st.warning(f"Location extraction failed: {str(e)}")
     
-    # Disaster Classification with Groq
     disaster_prompt = f"""
     Analyze this disaster scenario and provide specific classification:
     News Headlines: {news_texts[:2]}
     
     Respond with valid JSON containing:
     - "type": specific disaster type (e.g., "Category 4 Hurricane")
-    - "severity": integer from 1 to 10 (e.g., 9, not "9/10")
+    - "severity": integer from 1 to 10
     - "severity_rationale": brief explanation
-    Ensure all keys are double-quoted and values are properly formatted (e.g., severity as a number).
     """
     
     try:
@@ -120,7 +116,6 @@ def analyze_disaster(query, news_texts, geo_data):
             "severity_rationale": "High impact based on news reports of significant damage."
         }
     
-    # Generate Response Plan
     response_prompt = f"""
     Generate a detailed response plan for:
     Disaster: {disaster_analysis['type']}
@@ -128,11 +123,10 @@ def analyze_disaster(query, news_texts, geo_data):
     Locations: {locations or 'None'}
     
     Provide valid JSON with:
-    - "timeline": ["3 critical events with timestamps in format YYYY-MM-DD HH:MM:SS"]
+    - "timeline": ["3 critical events with timestamps"]
     - "actions": ["3 prioritized actions"]
     - "resources": ["3 most needed resources"]
     - "sentiment": "analysis of public mood"
-    Ensure all keys are double-quoted and values are properly formatted.
     """
     
     try:
@@ -152,19 +146,18 @@ def analyze_disaster(query, news_texts, geo_data):
                 f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Storm begins to subside"
             ],
             "actions": [
-                "Evacuate high-risk areas, especially coastal and flood-prone zones.",
-                "Activate emergency services, including responders and rescue teams.",
-                "Establish communication networks for affected areas."
+                "Evacuate high-risk areas",
+                "Activate emergency services",
+                "Establish communication networks"
             ],
             "resources": [
-                "Food and water (100,000 units)",
-                "Medical supplies (50,000 units)",
-                "Generators and fuel (500 units)"
+                "Food and water",
+                "Medical supplies",
+                "Generators and fuel"
             ],
-            "sentiment": "Anxious and fearful due to severe disaster impact"
+            "sentiment": "Anxious and fearful"
         }
     
-    # Sentiment Analysis
     try:
         sentiment = models["sentiment"](" ".join(news_texts[:3]))
         sentiment_label = sentiment[0]["label"]
@@ -182,125 +175,23 @@ def analyze_disaster(query, news_texts, geo_data):
         "sentiment_score": sentiment_score
     }
 
-# --- 🎨 Streamlit UI ---
-# Sidebar Configuration
-with st.sidebar:
-    st.image("https://www.google.com/url?sa=i&url=https%3A%2F%2Fmedium.com%2F%40alex_tolson%2Fthe-role-of-satellite-imagery-in-disaster-management-22255e1663a3&psig=AOvVaw0xZeb2ucoTXS47jc0NpcLc&ust=1746097443086000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCOi5voLO_4wDFQAAAAAdAAAAABAE", width=100)
-    st.title("AI Genesis")
-    st.markdown("**LabLab AI Hackathon Entry**")
-    st.markdown("---")
-    demo_mode = st.checkbox("Demo Mode (Use sample data)", value=True)
-    st.markdown("---")
-    st.markdown("### 🛠️ Models Used")
-    st.markdown("- DistilBERT (Classification)")
-    st.markdown("- BERT-NER (Location Extraction)")
-    st.markdown("- Llama3-70B (Analysis)")
-    st.markdown("---")
-    st.markdown("Made with ❤️ for /execute: AI Genesis")
-
-# Main Interface
+# UI setup and analysis trigger
 st.title("🌪️ AI-Powered Disaster Response System")
-st.markdown("Real-time disaster intelligence with multi-model AI analysis")
+query = st.text_input("📍 Enter Disaster Location/Event:")
+demo_mode = st.sidebar.checkbox("Demo Mode", value=True)
 
-# Input Section
-query = st.text_input(
-    "📍 Enter Disaster Location/Event:", 
-    placeholder="e.g., Florida Hurricane 2025",
-    help="Enter a location or specific disaster event"
-)
-
-if st.button("🚀 Launch AI Analysis", type="primary"):
+if st.button("🚀 Launch AI Analysis"):
     if not query:
-        st.error("Please enter a disaster query.")
+        st.error("Please enter a query.")
     else:
-        with st.spinner("🛰️ Gathering real-time intelligence..."):
-            # Data Collection
-            data = fetch_disaster_data(query, demo_mode=demo_mode)
-            news_texts = [f"{n['title']}: {n.get('snippet', '')}" for n in data["news"]]
-            
-            if not news_texts:
-                st.error("No valid news sources found. Try another query or disable Demo Mode.")
-                st.stop()
-                
-            # AI Analysis
-            analysis = analyze_disaster(query, news_texts, data["geo"])
-            
-            # --- Results Dashboard ---
-            st.success("✅ AI Analysis Complete!")
-            
-            # Severity Alert
-            severity_color = "red" if analysis["severity"] > 7 else "orange" if analysis["severity"] > 4 else "green"
-            st.markdown(f"""
-            <div style="background:{severity_color}; padding:15px; border-radius:10px; color:white; margin-bottom:20px;">
-                <h2 style="margin:0;">🚨 {analysis['type'].upper()} DETECTED</h2>
-                <h1 style="margin:0; text-align:center;">SEVERITY: {analysis['severity']}/10</h1>
-                <p style="margin:0;"><i>{analysis['severity_rationale']}</i></p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Map Visualization
-            if analysis["geo"]:
-                col1, col2 = st.columns([2, 1])
-                with col1:
-                    try:
-                        m = folium.Map(
-                            location=[float(analysis["geo"]["lat"]), float(analysis["geo"]["lon"])], 
-                            zoom_start=7,
-                            tiles="Stamen Terrain"
-                        )
-                        folium.Marker(
-                            [analysis["geo"]["lat"], analysis["geo"]["lon"]],
-                            popup=f"<b>{query}</b><br>Severity: {analysis['severity']}/10",
-                            icon=folium.Icon(color=severity_color, icon="cloud")
-                        ).add_to(m)
-                        folium_static(m)
-                    except:
-                        st.warning("Map rendering failed.")
-                
-                with col2:
-                    st.metric("📍 Primary Location", analysis["geo"].get("display_name", "Unknown"))
-                    st.metric("🌍 Coordinates", f"{analysis['geo']['lat']}, {analysis['geo']['lon']}")
-                    st.metric("📌 Other Locations", len(analysis["locations"]))
-            
-            # Timeline and Actions
-            tab1, tab2, tab3 = st.tabs(["📅 Timeline", "🛠️ Response Plan", "📰 News Sources"])
-            
-            with tab1:
-                st.subheader("Critical Events Timeline")
-                for event in analysis["timeline"]:
-                    st.markdown(f"⏱️ {event}")
-            
-            with tab2:
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.subheader("Priority Actions")
-                    for action in analysis["actions"]:
-                        st.markdown(f"✅ {action}")
-                with col2:
-                    st.subheader("Resources Needed")
-                    for resource in analysis["resources"]:
-                        st.markdown(f"📦 {resource}")
-                
-                st.markdown("---")
-                st.subheader("Public Sentiment Analysis")
-                st.write(f"Overall mood: **{analysis['sentiment_label']}** (confidence: {analysis['sentiment_score']:.0%})")
-            
-            with tab3:
-                for news in data["news"]:
-                    st.markdown(f"""
-                    ### {news['title']}
-                    {news.get('snippet', '')}
-                    *[Source]({news.get('link', '#')})*
-                    """)
-                    st.markdown("---")
+        data = fetch_disaster_data(query, demo_mode=demo_mode)
+        news_texts = [f"{n['title']}: {n.get('snippet', '')}" for n in data["news"]]
+        analysis = analyze_disaster(query, news_texts, data["geo"])
+        st.json(analysis)
+'''
 
-# Footer
-st.markdown("---")
-st.markdown("""
-### 🏆 Hackathon Compliance
-✅ **Multi-Model AI** (DistilBERT, BERT-NER, Llama3-70B)  
-✅ **Real-Time Data** (SerpAPI + OpenStreetMap)  
-✅ **Advanced Visualization** (Interactive maps + timelines)  
-✅ **Professional UI** (Streamlit + Plotly + Folium)  
-✅ **Complete Documentation**  
-""")
+# Write the code to app.py
+with open(main_file_path, "w") as f:
+    f.write(streamlit_code)
+
+project_dir
