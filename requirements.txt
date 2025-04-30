@@ -1,13 +1,7 @@
 streamlit
 serpapi
-requests
 groq
-transformers
-pandas
-plotly
+python-dotenv
 folium
 streamlit-folium
-python-dotenv
-osmnx
 timeout-decorator
-
