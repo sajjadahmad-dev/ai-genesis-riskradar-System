@@ -169,7 +169,7 @@ def analyze_disaster(query, news_texts, geo_data):
 
 # --- 🎨 Streamlit UI ---
 with st.sidebar:
-    st.image("https://images.unsplash.com/photo-1535223289827-42f1e9919769?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80", width=100, caption="Disaster Satellite View")
+    st.image("https://media.istockphoto.com/id/2035571068/photo/dynamic-digital-world-map-emphasize-western-europe-continental-for-ai-powered-global-network.jpg?s=1024x1024&w=is&k=20&c=dBwwelUFib398yhYPTT9Y5UbloXGXfcoBWpo-m6oDYM=", width=100, caption="Disaster Satellite View")
     st.title("AI Genesis")
     st.markdown("**LabLab AI Hackathon Entry**")
     st.markdown("---")
