@@ -51,8 +51,8 @@ def load_ai_models():
 models = load_ai_models()
 
 # Fetch API keys from Streamlit secrets
-groq = Groq(api_key=st.secrets["API_GROQ"])
-serpapi_key = st.secrets["SERP_API_KEY"]
+groq = Groq(api_key=st.secrets["GROQ"])
+serpapi_key = st.secrets["SERP"]
 
 # --- 🛰️ Data Fetching ---
 def fetch_disaster_data(query, demo_mode=False):
