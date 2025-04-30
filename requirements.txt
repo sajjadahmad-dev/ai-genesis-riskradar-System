@@ -8,3 +8,5 @@ plotly
 folium
 streamlit-folium
 python-dotenv
+osmnx
+
