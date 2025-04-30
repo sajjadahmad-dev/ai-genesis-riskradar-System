@@ -1,4 +1,3 @@
-
 import streamlit as st
 import serpapi
 import requests
@@ -16,28 +15,34 @@ import random
 DEMO_DATA = {
     "hurricane": {
         "news": [
-            {"title": "Category 4 Hurricane Makes Landfall", "snippet": "Winds up to 130 mph reported in coastal areas", "link": "#"},
-            {"title": "Evacuations Underway", "snippet": "Over 1 million residents ordered to evacuate", "link": "#"},
-            {"title": "Emergency Declared", "snippet": "National Guard deployed to affected regions", "link": "#"}
+            {"title": "Category 4 Hurricane Makes Landfall", "snippet": "Winds up to 130 mph reported", "link": "#"},
+            {"title": "Evacuations Underway", "snippet": "1 million residents ordered to evacuate", "link": "#"},
+            {"title": "Emergency Declared", "snippet": "National Guard deployed", "link": "#"}
         ],
         "geo": {"lat": "27.6648", "lon": "-81.5158", "display_name": "Florida, USA"}
-    },
-    "earthquake": {
-        "news": [
-            {"title": "7.2 Magnitude Earthquake Strikes", "snippet": "Buildings collapsed in downtown area", "link": "#"},
-            {"title": "Tsunami Warning Issued", "snippet": "Coastal residents urged to move to higher ground", "link": "#"},
-            {"title": "International Aid Mobilized", "snippet": "UN sending emergency response teams", "link": "#"}
-        ],
-        "geo": {"lat": "35.6762", "lon": "139.6503", "display_name": "Tokyo, Japan"}
     }
 }
 
-# --- 🔐 Initialize API Clients with Secrets ---
+# --- 🔐 Initialize API Clients with PROPER Secret Handling ---
 try:
-    groq = Groq(api_key=st.secrets.get("GROQ_API_KEY", "default-key"))
-    SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "default-key")
+    # Method 1: Check if secrets exist (for Streamlit Cloud)
+    if hasattr(st, 'secrets'):
+        GROQ_API_KEY = st.secrets.get("GROQ_API_KEY")
+        SERPAPI_KEY = st.secrets.get("SERPAPI_KEY")
+    # Method 2: Fallback to environment variables
+    else:
+        import os
+        GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+        SERPAPI_KEY = os.environ.get("SERPAPI_KEY")
+    
+    # Method 3: Final fallback (for local testing only - remove before deployment)
+    if not GROQ_API_KEY or not SERPAPI_KEY:
+        GROQ_API_KEY = "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"
+        SERPAPI_KEY = "39a147d2d97b7b81d98fe00e15a15edfa4e701f465c2f46df26ed534ef2cbd50"
+    
+    groq = Groq(api_key=GROQ_API_KEY)
 except Exception as e:
-    st.error(f"Failed to initialize API clients: {str(e)}")
+    st.error(f"API initialization failed: {str(e)}")
     st.stop()
 
 # --- 🧠 AI Model Initialization ---
@@ -46,11 +51,10 @@ def load_ai_models():
     try:
         return {
             "disaster_clf": pipeline("text-classification", model="distilbert-base-uncased"),
-            "ner": pipeline("ner", model="dslim/bert-base-NER"),
-            "sentiment": pipeline("sentiment-analysis", model="finiteautomata/bertweet-base-sentiment-analysis")
+            "ner": pipeline("ner", model="dslim/bert-base-NER")
         }
     except Exception as e:
-        st.error(f"Failed to load AI models: {str(e)}")
+        st.error(f"Model loading failed: {str(e)}")
         return None
 
 models = load_ai_models()
@@ -60,8 +64,7 @@ if models is None:
 # --- 🛰️ Data Fetching ---
 def fetch_disaster_data(query, demo_mode=False):
     if demo_mode:
-        disaster_type = random.choice(list(DEMO_DATA.keys()))
-        return DEMO_DATA[disaster_type]
+        return DEMO_DATA["hurricane"]  # Use predefined demo data
     
     try:
         news = serpapi.search({
@@ -81,7 +84,7 @@ def fetch_disaster_data(query, demo_mode=False):
         }
     except Exception as e:
         st.error(f"Data fetch error: {str(e)}")
-        return {"news": [], "geo": None}
+        return None
 
 # --- 🤖 AI Analysis Engine ---
 def analyze_disaster(query, news_texts, geo_data):
@@ -90,49 +93,28 @@ def analyze_disaster(query, news_texts, geo_data):
         entities = models["ner"](" ".join(news_texts))
         locations = list({e['word'] for e in entities if e['entity'] in ['B-LOC','I-LOC']})
         
-        # Disaster Classification with Groq
-        disaster_prompt = f"""
-        Analyze this disaster scenario:
-        News Headlines: {news_texts[:2]}
+        # Disaster Analysis
+        prompt = f"""
+        Analyze this disaster:
+        {query}
+        News: {news_texts[:2]}
         
-        Respond with JSON containing:
-        - "type": specific disaster type
-        - "severity": 1-10 scale
-        - "severity_rationale": brief explanation
+        Return JSON with:
+        - "type": disaster type
+        - "severity": 1-10
+        - "actions": ["3 steps"]
+        - "resources": ["3 items"]
         """
         
-        disaster_analysis = groq.chat.completions.create(
-            model="llama3-70b-8192",
-            messages=[{"role": "user", "content": disaster_prompt}],
+        response = groq.chat.completions.create(
+            model="llama3-8b-8192",  # Using smaller model to conserve tokens
+            messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
             temperature=0.3
-        ).choices[0].message.content
-        
-        disaster_analysis = json.loads(disaster_analysis)
-        
-        # Generate Response Plan
-        response_prompt = f"""
-        Generate response plan for:
-        Disaster: {disaster_analysis['type']}
-        Severity: {disaster_analysis['severity']}/10
-        Locations: {locations}
-        
-        Provide JSON with:
-        - "timeline": ["3 critical events"]
-        - "actions": ["3 prioritized actions"]
-        - "resources": ["3 needed resources"]
-        """
-        
-        response_plan = groq.chat.completions.create(
-            model="llama3-70b-8192",
-            messages=[{"role": "user", "content": response_prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.3
-        ).choices[0].message.content
+        )
         
         return {
-            **disaster_analysis,
-            **json.loads(response_plan),
+            **json.loads(response.choices[0].message.content),
             "locations": locations,
             "geo": geo_data
         }
@@ -142,96 +124,68 @@ def analyze_disaster(query, news_texts, geo_data):
 
 # --- 🎨 Streamlit UI ---
 st.set_page_config(
-    page_title="🚀 AI Disaster Response",
+    page_title="AI Disaster Response",
     layout="wide",
     page_icon="🌪️"
 )
 
 # Sidebar
 with st.sidebar:
-    st.image("https://i.imgur.com/JQ0w7wv.png", width=100)
-    st.title("AI Genesis")
-    demo_mode = st.checkbox("Demo Mode", value=True)
+    st.title("AI Disaster Response")
+    demo_mode = st.checkbox("Use Demo Mode", value=True)
     st.markdown("---")
-    st.markdown("### Models Used")
-    st.markdown("- DistilBERT (Classification)")
-    st.markdown("- BERT-NER (Location Extraction)")
-    st.markdown("- Llama3-70B (Analysis)")
+    st.markdown("**Models:**")
+    st.markdown("- DistilBERT")
+    st.markdown("- BERT-NER")
+    st.markdown("- Llama3")
 
 # Main Interface
-st.title("🌪️ AI-Powered Disaster Response")
-st.markdown("Real-time disaster intelligence with multi-model AI analysis")
+st.header("🌪️ Real-time Disaster Analysis")
 
-# Input Section
-query = st.text_input(
-    "📍 Enter Disaster Location/Event:", 
-    placeholder="e.g., Florida Hurricane 2025"
-)
+query = st.text_input("Enter disaster location:", "Florida Hurricane")
 
-if st.button("🚀 Launch Analysis", type="primary"):
-    with st.spinner("🛰️ Gathering intelligence..."):
-        data = fetch_disaster_data(query, demo_mode=demo_mode)
+if st.button("Analyze"):
+    with st.spinner("Processing..."):
+        data = fetch_disaster_data(query, demo_mode)
+        if not data:
+            st.error("Failed to fetch data")
+            st.stop()
+            
         news_texts = [f"{n['title']}: {n.get('snippet', '')}" for n in data["news"]]
-        
-        if not news_texts:
-            st.error("No valid news sources found.")
-            st.stop()
-            
         analysis = analyze_disaster(query, news_texts, data["geo"])
-        if analysis is None:
+        
+        if not analysis:
             st.stop()
         
-        # Results Dashboard
-        st.success("✅ Analysis Complete!")
+        # Display Results
+        st.subheader(f"{analysis['type'].upper()} DETECTED")
         
-        # Severity Alert
-        severity_color = "red" if analysis["severity"] > 7 else "orange" if analysis["severity"] > 4 else "green"
-        st.markdown(f"""
-        <div style="background:{severity_color}; padding:15px; border-radius:10px; color:white; margin-bottom:20px;">
-            <h2 style="margin:0;">🚨 {analysis['type'].upper()}</h2>
-            <h1 style="margin:0; text-align:center;">SEVERITY: {analysis['severity']}/10</h1>
-            <p style="margin:0;"><i>{analysis['severity_rationale']}</i></p>
-        </div>
-        """, unsafe_allow_html=True)
+        # Severity Meter
+        severity = analysis.get("severity", 5)
+        st.progress(severity/10, text=f"Severity: {severity}/10")
         
-        # Map Visualization
+        # Map
         if analysis["geo"]:
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                m = folium.Map(
-                    location=[float(analysis["geo"]["lat"]), float(analysis["geo"]["lon"])], 
-                    zoom_start=7
-                )
-                folium.Marker(
-                    [analysis["geo"]["lat"], analysis["geo"]["lon"]],
-                    popup=f"<b>{query}</b>",
-                    icon=folium.Icon(color=severity_color)
-                ).add_to(m)
-                folium_static(m)
-            
-            with col2:
-                st.metric("📍 Location", analysis["geo"].get("display_name", "Unknown"))
-                st.metric("🌍 Coordinates", f"{analysis['geo']['lat']}, {analysis['geo']['lon']}")
+            m = folium.Map(
+                location=[float(analysis["geo"]["lat"]), float(analysis["geo"]["lon"])],
+                zoom_start=7
+            )
+            folium.Marker(
+                [analysis["geo"]["lat"], analysis["geo"]["lon"]],
+                tooltip=query
+            ).add_to(m)
+            folium_static(m)
         
-        # Timeline and Actions
-        tab1, tab2 = st.tabs(["📅 Timeline", "🛠️ Response Plan"])
+        # Action Plan
+        st.subheader("Action Plan")
+        for action in analysis.get("actions", []):
+            st.markdown(f"- {action}")
         
-        with tab1:
-            st.subheader("Critical Events")
-            for event in analysis["timeline"]:
-                st.markdown(f"⏱️ {event}")
-        
-        with tab2:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.subheader("Priority Actions")
-                for action in analysis["actions"]:
-                    st.markdown(f"✅ {action}")
-            with col2:
-                st.subheader("Resources Needed")
-                for resource in analysis["resources"]:
-                    st.markdown(f"📦 {resource}")
+        # Resources
+        st.subheader("Needed Resources")
+        for resource in analysis.get("resources", []):
+            st.markdown(f"- {resource}")
 
 # Footer
 st.markdown("---")
-st.markdown("Built for /execute: AI Genesis Hackathon")
+st.caption("Built for AI Genesis Hackathon")
