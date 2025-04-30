@@ -1,8 +1,9 @@
 streamlit
-requests
+streamlit-folium
 folium
 plotly
 pandas
+requests
 openai
 groq
 serpapi
