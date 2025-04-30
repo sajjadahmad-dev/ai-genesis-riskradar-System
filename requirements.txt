@@ -1,11 +1,9 @@
 streamlit
-streamlit-folium
-folium
-plotly
-pandas
-requests
-openai
-groq
 serpapi
-torch
+requests
+groq
 transformers
+pandas
+plotly
+folium
+streamlit-folium
