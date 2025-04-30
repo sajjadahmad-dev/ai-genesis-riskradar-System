@@ -4,8 +4,7 @@ import pandas as pd
 import plotly.express as px
 import folium
 from folium.plugins import MarkerCluster
-from transformers import pipeline
-import openstreetmap
+import osmnx as ox  # This is used for OpenStreetMap data
 
 # Set up the AI models
 st.set_page_config(page_title="AI Genesis: Disaster Response", layout="wide")
@@ -58,10 +57,16 @@ df = pd.DataFrame({
 fig = px.line(df, x='Time', y='Response Level', title="Disaster Response Level Over Time")
 st.plotly_chart(fig)
 
-# Example of creating a Folium map
+# Example of creating a Folium map using osmnx for OpenStreetMap data
 m = folium.Map(location=[40.7128, -74.0060], zoom_start=10)  # New York coordinates
 marker_cluster = MarkerCluster().add_to(m)
 
+# Example of fetching buildings or locations using osmnx (from OpenStreetMap)
+place_name = "New York, USA"
+graph = ox.graph_from_place(place_name, network_type='all')
+nodes, edges = ox.graph_to_gdfs(graph)
+
+# Add dummy markers for demo (replace with real data)
 for i in range(5):  # Add dummy markers for demo
     folium.Marker([40.7128 + i*0.01, -74.0060 + i*0.01], popup=f"Location {i+1}").add_to(marker_cluster)
 
