@@ -169,7 +169,7 @@ def analyze_disaster(query, news_texts, geo_data):
 
 # --- 🎨 Streamlit UI ---
 with st.sidebar:
-    st.image("https://media.istockphoto.com/id/2035571068/photo/dynamic-digital-world-map-emphasize-western-europe-continental-for-ai-powered-global-network.jpg?s=1024x1024&w=is&k=20&c=dBwwelUFib398yhYPTT9Y5UbloXGXfcoBWpo-m6oDYM=", width=1000, caption="Disaster Satellite View")
+    st.image("https://images.unsplash.com/photo-1535223289827-42f1e9919769?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80", width=100, caption="Disaster Satellite View")
     st.title("AI Genesis")
     st.markdown("**LabLab AI Hackathon Entry**")
     st.markdown("---")
@@ -315,7 +315,7 @@ st.markdown("""
 """)
 st.markdown("""
 ### 📸 Image Credits
-- Sidebar: [Unsplash](https://media.istockphoto.com/id/2035571068/photo/dynamic-digital-world-map-emphasize-western-europe-continental-for-ai-powered-global-network.jpg?s=1024x1024&w=is&k=20&c=dBwwelUFib398yhYPTT9Y5UbloXGXfcoBWpo-m6oDYM=)
-- Header: [Pexels](https://media.istockphoto.com/id/1452316636/photo/paramedics-taking-patient-on-stretcher-from-ambulance-to-hospital.jpg?s=1024x1024&w=is&k=20&c=hiJRZkNtjfQDl4PeQp_wmBfIxzSQ-uEPVHWMNosJ2-Q=)
+- Sidebar: [Unsplash](https://unsplash.com/photos/hurricane-satellite-view-4ZJZg9pG9kA)
+- Header: [Pexels](https://www.pexels.com/photo/emergency-response-team-6422823/)
 - Tabs: [Pexels](https://www.pexels.com)
 """)
