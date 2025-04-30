@@ -1,6 +1,7 @@
 import streamlit as st
 import serpapi
 import requests
+import os
 from groq import Groq
 from transformers import pipeline
 import pandas as pd
