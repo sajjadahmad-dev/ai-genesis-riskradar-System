@@ -4,6 +4,7 @@ import requests
 from groq import Groq
 import os
 from transformers import pipeline
+import io
 import pandas as pd
 import plotly.express as px
 import folium
