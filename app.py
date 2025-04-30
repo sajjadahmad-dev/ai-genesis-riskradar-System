@@ -11,11 +11,17 @@ import json
 import random
 import os
 from dotenv import load_dotenv
+import logging
+import timeout_decorator
 
-# Load environment variables (mimics your previous method)
+# Set up logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Load environment variables
 load_dotenv()
 
-# Set page config as the FIRST Streamlit command
+# Set page config
 st.set_page_config(
     page_title="🚀 AI Genesis: Disaster Response",
     layout="wide",
@@ -45,42 +51,59 @@ DEMO_DATA = {
 
 # --- 🧠 AI Model Initialization ---
 @st.cache_resource
+@timeout_decorator.timeout(300, timeout_exception=TimeoutError)  # 5-minute timeout
 def load_ai_models():
     try:
-        return {
+        logger.debug("Loading AI models...")
+        models = {
             "disaster_clf": pipeline("text-classification", model="distilbert-base-uncased"),
             "ner": pipeline("ner", model="dslim/bert-base-NER"),
             "sentiment": pipeline("sentiment-analysis", model="finiteautomata/bertweet-base-sentiment-analysis")
         }
+        logger.debug("AI models loaded successfully.")
+        return models
     except Exception as e:
-        st.error(f"Failed to load AI models: {str(e)}")
+        logger.error(f"Failed to load AI models: {str(e)}")
+        st.error(f"Failed to load AI models: {str(e)}. Using fallback data.")
         return None
 
-models = load_ai_models()
-if models is None:
-    st.stop()
+try:
+    models = load_ai_models()
+except TimeoutError:
+    logger.error("Model loading timed out after 5 minutes.")
+    st.error("Model loading timed out after 5 minutes. Using fallback data.")
+    models = None
 
-# Initialize Groq with error handling
+if models is None:
+    st.warning("Running without AI models. Output will use default demo data.")
+
+# Initialize Groq
 try:
     groq_api_key = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY", ""))
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY is missing.")
+    logger.debug("Initializing Groq client...")
     groq = Groq(api_key=groq_api_key)
+    logger.debug("Groq client initialized.")
 except Exception as e:
+    logger.error(f"Failed to initialize Groq client: {str(e)}")
     st.error(f"Failed to initialize Groq client: {str(e)}. Running in demo mode only.")
     groq = None
 
 # --- 🛰️ Data Fetching ---
 def fetch_disaster_data(query, demo_mode=False):
+    logger.debug(f"Fetching data for query: {query}, demo_mode: {demo_mode}")
     if demo_mode or groq is None:
         st.info("Using demo data due to demo mode or Groq failure.")
         disaster_type = random.choice(list(DEMO_DATA.keys()))
+        logger.debug(f"Returning demo data for {disaster_type}")
         return DEMO_DATA[disaster_type]
     
     try:
         serpapi_key = st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", ""))
         if not serpapi_key:
             raise ValueError("SERPAPI_KEY is missing.")
+        logger.debug("Querying SerpAPI...")
         news = serpapi.search({
             "q": f"{query} disaster",
             "api_key": serpapi_key,
@@ -88,39 +111,48 @@ def fetch_disaster_data(query, demo_mode=False):
             "num": 3
         }).get('news_results', [])[:3]
         
-        # Use demo geo data (no OpenStreetMap API)
+        # Use demo geo data
         geo_data = DEMO_DATA.get("hurricane" if "hurricane" in query.lower() else "earthquake", {}).get("geo")
         
         if not news:
             st.warning("No news results from SerpAPI. Using demo data.")
+            logger.debug("No news results, using demo data.")
             return DEMO_DATA["hurricane"]
         
+        logger.debug("Data fetched successfully.")
         return {
             "news": [n for n in news if n.get('title')],
             "geo": geo_data
         }
     except Exception as e:
+        logger.error(f"Data fetch error: {str(e)}")
         st.error(f"Data fetch error: {str(e)}. Using demo data.")
         return DEMO_DATA["hurricane"]
 
 # --- 🤖 AI Analysis Engine ---
 def analyze_disaster(query, news_texts, geo_data):
+    logger.debug("Starting disaster analysis...")
     try:
         # Entity Recognition
-        try:
-            entities = models["ner"](" ".join(news_texts))
-            locations = list({e['word'] for e in entities if e['entity'].startswith('B-LOC') or e['entity'].startswith('I-LOC')})
-        except Exception as e:
-            locations = []
-            st.warning(f"Location extraction failed: {str(e)}")
+        locations = []
+        if models:
+            try:
+                logger.debug("Running NER...")
+                entities = models["ner"](" ".join(news_texts))
+                locations = list({e['word'] for e in entities if e['entity'].startswith('B-LOC') or e['entity'].startswith('I-LOC')})
+                logger.debug(f"Extracted locations: {locations}")
+            except Exception as e:
+                logger.warning(f"Location extraction failed: {str(e)}")
+                st.warning(f"Location extraction failed: {str(e)}")
         
-        # Disaster Classification with Groq
+        # Disaster Classification
         if groq is None:
             disaster_analysis = {
                 "type": "Category 4 Hurricane" if "hurricane" in query.lower() else "Unknown Disaster",
                 "severity": 9,
                 "severity_rationale": "High impact based on demo data."
             }
+            logger.debug("Using default disaster analysis (no Groq).")
         else:
             disaster_prompt = f"""
             Analyze this disaster scenario and provide specific classification:
@@ -128,25 +160,29 @@ def analyze_disaster(query, news_texts, geo_data):
             
             Respond with valid JSON containing:
             - "type": specific disaster type (e.g., "Category 4 Hurricane")
-            - "severity": integer from 1 to 10 (e.g., 9, not "9/10")
+            - "severity": integer from 1 to 10
             - "severity_rationale": brief explanation
-            Ensure all keys are double-quoted and values are properly formatted (e.g., severity as a number).
+            Ensure all keys are double-quoted and values are properly formatted.
             """
             
             try:
+                logger.debug("Querying Groq for disaster analysis...")
                 disaster_analysis = groq.chat.completions.create(
                     model="llama3-70b-8192",
                     messages=[{"role": "user", "content": disaster_prompt}],
                     response_format={"type": "json_object"},
-                    temperature=0.3
+                    temperature=0.3,
+                    timeout=30  # 30-second timeout
                 ).choices[0].message.content
                 disaster_analysis = json.loads(disaster_analysis)
+                logger.debug("Groq disaster analysis completed.")
             except Exception as e:
+                logger.warning(f"Groq disaster analysis failed: {str(e)}")
                 st.warning(f"Groq disaster analysis failed: {str(e)}. Using default analysis.")
                 disaster_analysis = {
                     "type": "Category 4 Hurricane" if "hurricane" in query.lower() else "Unknown Disaster",
                     "severity": 9,
-                    "severity_rationale": "High impact based on news reports of significant damage."
+                    "severity_rationale": "High impact based on news reports."
                 }
         
         # Generate Response Plan
@@ -169,6 +205,7 @@ def analyze_disaster(query, news_texts, geo_data):
                 ],
                 "sentiment": "Anxious and fearful due to severe disaster impact"
             }
+            logger.debug("Using default response plan (no Groq).")
         else:
             response_prompt = f"""
             Generate a detailed response plan for:
@@ -185,14 +222,18 @@ def analyze_disaster(query, news_texts, geo_data):
             """
             
             try:
+                logger.debug("Querying Groq for response plan...")
                 response_plan = groq.chat.completions.create(
                     model="llama3-70b-8192",
                     messages=[{"role": "user", "content": response_prompt}],
                     response_format={"type": "json_object"},
-                    temperature=0.3
+                    temperature=0.3,
+                    timeout=30  # 30-second timeout
                 ).choices[0].message.content
                 response_plan = json.loads(response_plan)
+                logger.debug("Groq response plan completed.")
             except Exception as e:
+                logger.error(f"Groq response plan failed: {str(e)}")
                 st.error(f"Groq response plan failed: {str(e)}. Using default response plan.")
                 response_plan = {
                     "timeline": [
@@ -214,14 +255,19 @@ def analyze_disaster(query, news_texts, geo_data):
                 }
         
         # Sentiment Analysis
-        try:
-            sentiment = models["sentiment"](" ".join(news_texts[:3]))
-            sentiment_label = sentiment[0]["label"]
-            sentiment_score = sentiment[0]["score"]
-        except:
-            sentiment_label, sentiment_score = "Neutral", 0.5
-            st.warning("Sentiment analysis failed.")
+        sentiment_label, sentiment_score = "Neutral", 0.5
+        if models:
+            try:
+                logger.debug("Running sentiment analysis...")
+                sentiment = models["sentiment"](" ".join(news_texts[:3]))
+                sentiment_label = sentiment[0]["label"]
+                sentiment_score = sentiment[0]["score"]
+                logger.debug(f"Sentiment: {sentiment_label}, Score: {sentiment_score}")
+            except:
+                logger.warning("Sentiment analysis failed.")
+                st.warning("Sentiment analysis failed.")
         
+        logger.debug("Analysis completed successfully.")
         return {
             **disaster_analysis,
             **response_plan,
@@ -231,6 +277,7 @@ def analyze_disaster(query, news_texts, geo_data):
             "sentiment_score": sentiment_score
         }
     except Exception as e:
+        logger.error(f"Analysis failed: {str(e)}")
         st.error(f"Analysis failed: {str(e)}. Please try again.")
         return None
 
@@ -272,17 +319,22 @@ if st.button("🚀 Launch AI Analysis", type="primary"):
     else:
         with st.spinner("🛰️ Gathering real-time intelligence..."):
             try:
+                logger.debug("Starting analysis for query: %s", query)
                 # Data Collection
                 data = fetch_disaster_data(query, demo_mode=demo_mode)
+                logger.debug("Data fetched: %s", data)
                 news_texts = [f"{n['title']}: {n.get('snippet', '')}" for n in data["news"]]
                 
                 if not news_texts:
+                    logger.error("No valid news sources found.")
                     st.error("No valid news sources found. Try another query or enable Demo Mode.")
                     st.stop()
                 
                 # AI Analysis
                 analysis = analyze_disaster(query, news_texts, data["geo"])
+                logger.debug("Analysis result: %s", analysis)
                 if analysis is None:
+                    logger.error("Analysis returned no results.")
                     st.error("Analysis returned no results. Please try again.")
                     st.stop()
                 
@@ -305,7 +357,7 @@ if st.button("🚀 Launch AI Analysis", type="primary"):
                     with col1:
                         try:
                             m = folium.Map(
-                                location=[float(analysis["geo"]["lat"]), float(analysis["geo"]["lon"])], 
+                                location=[float(analysis["geo"]["lat"]), float(analysis["geo"]["lon"])],
                                 zoom_start=7,
                                 tiles="Stamen Terrain"
                             )
@@ -316,6 +368,7 @@ if st.button("🚀 Launch AI Analysis", type="primary"):
                             ).add_to(m)
                             folium_static(m)
                         except:
+                            logger.warning("Map rendering failed.")
                             st.warning("Map rendering failed.")
                     
                     with col2:
@@ -361,7 +414,10 @@ if st.button("🚀 Launch AI Analysis", type="primary"):
                         *[Source]({news.get('link', 'https://www.fema.gov')})*
                         """)
                         st.markdown("---")
+                
+                logger.debug("Results dashboard rendered successfully.")
             except Exception as e:
+                logger.error(f"Processing failed: {str(e)}")
                 st.error(f"Processing failed: {str(e)}. Please check logs or try again.")
 
 # Footer
