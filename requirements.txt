@@ -9,4 +9,5 @@ folium
 streamlit-folium
 python-dotenv
 osmnx
+timeout-decorator
 
