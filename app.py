@@ -25,54 +25,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for beautiful styling
-st.markdown("""
-<style>
-    .stApp {
-        background: linear-gradient(to bottom, #f0f4ff, #ffffff);
-    }
-    .sidebar .sidebar-content {
-        background: linear-gradient(to bottom, #4b6cb7, #182848);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-    }
-    .stButton>button {
-        background-color: #007bff;
-        color: white;
-        border-radius: 8px;
-        padding: 10px 20px;
-        font-weight: bold;
-        transition: background-color 0.3s;
-    }
-    .stButton>button:hover {
-        background-color: #0056b3;
-    }
-    .stTextInput>div>input {
-        border: 2px solid #007bff;
-        border-radius: 8px;
-        padding: 10px;
-    }
-    .severity-alert {
-        border: 3px solid transparent;
-        border-image: linear-gradient(to right, #ff416c, #ff4b2b) 1;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 20px;
-    }
-    .tab-header {
-        font-size: 1.5em;
-        font-weight: bold;
-        margin-bottom: 10px;
-    }
-    .tab1-header { color: #007bff; }
-    .tab2-header { color: #28a745; }
-    .tab3-header { color: #6f42c1; }
-    h1, h2, h3, h4 { font-family: 'Arial', sans-serif; }
-    .stMetric { background-color: #f8f9fa; padding: 10px; border-radius: 8px; }
-</style>
-""", unsafe_allow_html=True)
-
 # --- 🌟 CONSTANTS ---
 DEMO_DATA = {
     "hurricane": {
@@ -217,24 +169,26 @@ def analyze_disaster(query, news_texts, geo_data):
 
 # --- 🎨 Streamlit UI ---
 with st.sidebar:
-    st.markdown("<h1 style='color: white;'>AI Genesis</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #d1d5db;'>LabLab AI Hackathon Entry</p>", unsafe_allow_html=True)
-    st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
+    st.image("https://images.unsplash.com/photo-1535223289827-42f1e9919769?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80", width=100, caption="Disaster Satellite View")
+    st.title("AI Genesis")
+    st.markdown("**LabLab AI Hackathon Entry**")
+    st.markdown("---")
     demo_mode = st.checkbox("Demo Mode (Use sample data)", value=True)
-    st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color: white;'>🛠️ Technologies Used</h3>", unsafe_allow_html=True)
-    st.markdown("- Groq Llama3-70B (Analysis)", style={"color": "#d1d5db"})
-    st.markdown("- SerpAPI (Real-time News)", style={"color": "#d1d5db"})
-    st.markdown("- Folium (Interactive Maps)", style={"color": "#d1d5db"})
-    st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color: white;'>🔗 Links</h3>", unsafe_allow_html=True)
-    st.markdown("[Working Demo](https://your-streamlit-app-url.streamlit.app) *(Update after deployment)*", style={"color": "#d1d5db"})
-    st.markdown("[GitHub Repo](https://github.com/your-username/ai-powered-disaster-response-system)", style={"color": "#d1d5db"})
-    st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #d1d5db;'>Made with ❤️ for /execute: AI Genesis</p>", unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("### 🛠️ Technologies Used")
+    st.markdown("- Groq Llama3-70B (Analysis)")
+    st.markdown("- SerpAPI (Real-time News)")
+    st.markdown("- Folium (Interactive Maps)")
+    st.markdown("---")
+    st.markdown("### 🔗 Links")
+    st.markdown("[Working Demo](https://your-streamlit-app-url.streamlit.app) *(Update after deployment)*")
+    st.markdown("[GitHub Repo](https://github.com/your-username/ai-powered-disaster-response-system)")
+    st.markdown("---")
+    st.markdown("Made with ❤️ for /execute: AI Genesis")
 
-st.markdown("<h1 style='color: #1a3c6e;'>🌪️ AI-Powered Disaster Response System</h1>", unsafe_allow_html=True)
-st.markdown("<p style='color: #4a5568;'>Real-time disaster intelligence powered by Groq and SerpAPI</p>", unsafe_allow_html=True)
+st.image("https://images.pexels.com/photos/6422823/pexels-photo-6422823.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1", caption="Emergency Response in Action")
+st.title("🌪️ AI-Powered Disaster Response System")
+st.markdown("Real-time disaster intelligence powered by Groq and SerpAPI")
 
 query = st.text_input(
     "📍 Enter Disaster Location/Event:", 
@@ -273,10 +227,10 @@ if st.button("🚀 Launch AI Analysis", type="primary"):
                 # Severity Alert
                 severity_color = "red" if analysis["severity"] > 7 else "orange" if analysis["severity"] > 4 else "green"
                 st.markdown(f"""
-                <div class='severity-alert' style='background:{severity_color}; color:white;'>
-                    <h2 style='margin:0;'>🚨 {analysis['type'].upper()} DETECTED</h2>
-                    <h1 style='margin:0; text-align:center;'>SEVERITY: {analysis['severity']}/10</h1>
-                    <p style='margin:0;'><i>{analysis['severity_rationale']}</i></p>
+                <div style="background:{severity_color}; padding:15px; border-radius:10px; color:white; margin-bottom:20px;">
+                    <h2 style="margin:0;">🚨 {analysis['type'].upper()} DETECTED</h2>
+                    <h1 style="margin:0; text-align:center;">SEVERITY: {analysis['severity']}/10</h1>
+                    <p style="margin:0;"><i>{analysis['severity_rationale']}</i></p>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -313,28 +267,29 @@ if st.button("🚀 Launch AI Analysis", type="primary"):
                 ])
                 
                 with tab1:
-                    st.markdown("<h3 class='tab-header tab1-header'>Critical Events Timeline</h3>", unsafe_allow_html=True)
+                    st.image("https://images.pexels.com/photos/3184297/pexels-photo-3184297.jpeg?auto=compress&cs=tinysrgb&w=100", width=100, caption="Timeline")
+                    st.subheader("Critical Events Timeline")
                     for event in analysis["timeline"]:
                         st.markdown(f"⏱️ {event}")
                 
                 with tab2:
-                    st.markdown("<h3 class='tab-header tab2-header'>Response Plan</h3>", unsafe_allow_html=True)
+                    st.image("https://images.pexels.com/photos/3184287/pexels-photo-3184287.jpeg?auto=compress&cs=tinysrgb&w=100", width=100, caption="Response Plan")
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.markdown("<h4 style='color: #2d3748;'>Priority Actions</h4>", unsafe_allow_html=True)
+                        st.subheader("Priority Actions")
                         for action in analysis["actions"]:
                             st.markdown(f"✅ {action}")
                     with col2:
-                        st.markdown("<h4 style='color: #2d3748;'>Resources Needed</h4>", unsafe_allow_html=True)
+                        st.subheader("Resources Needed")
                         for resource in analysis["resources"]:
                             st.markdown(f"📦 {resource}")
                     
                     st.markdown("---")
-                    st.markdown("<h4 style='color: #2d3748;'>Public Sentiment Analysis</h4>", unsafe_allow_html=True)
+                    st.subheader("Public Sentiment Analysis")
                     st.write(f"Overall mood: **{analysis['sentiment']}**")
                 
                 with tab3:
-                    st.markdown("<h3 class='tab-header tab3-header'>News Sources</h3>", unsafe_allow_html=True)
+                    st.image("https://images.pexels.com/photos/3184291/pexels-photo-3184291.jpeg?auto=compress&cs=tinysrgb&w=100", width=100, caption="News")
                     for news in data["news"]:
                         st.markdown(f"""
                         ### {news['title']}
@@ -351,10 +306,10 @@ if st.button("🚀 Launch AI Analysis", type="primary"):
 # Footer
 st.markdown("---")
 st.markdown("""
-<h3 style='color: #1a3c6e;'>🏆 Hackathon Compliance</h3>
+### 🏆 Hackathon Compliance
 ✅ **AI Integration** (Groq Llama3-70B)  
 ✅ **Real-Time Data** (SerpAPI)  
 ✅ **Advanced Visualization** (Folium Maps)  
 ✅ **Professional UI** (Streamlit)  
 ✅ **Complete Documentation**  
-""", unsafe_allow_html=True)
+""")
