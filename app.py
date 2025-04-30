@@ -172,7 +172,7 @@ def analyze_disaster(query, news_texts, geo_data):
                     messages=[{"role": "user", "content": disaster_prompt}],
                     response_format={"type": "json_object"},
                     temperature=0.3,
-                    timeout=30  # 30-second timeout
+                    timeout=30
                 ).choices[0].message.content
                 disaster_analysis = json.loads(disaster_analysis)
                 logger.debug("Groq disaster analysis completed.")
@@ -228,7 +228,7 @@ def analyze_disaster(query, news_texts, geo_data):
                     messages=[{"role": "user", "content": response_prompt}],
                     response_format={"type": "json_object"},
                     temperature=0.3,
-                    timeout=30  # 30-second timeout
+                    timeout=30
                 ).choices[0].message.content
                 response_plan = json.loads(response_plan)
                 logger.debug("Groq response plan completed.")
