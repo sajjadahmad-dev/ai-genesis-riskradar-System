@@ -68,7 +68,7 @@ st.markdown("""
     .tab1-header { color: #007bff; }
     .tab2-header { color: #28a745; }
     .tab3-header { color: #6f42c1; }
-    h1, h2, h3 { font-family: 'Arial', sans-serif; }
+    h1, h2, h3, h4 { font-family: 'Arial', sans-serif; }
     .stMetric { background-color: #f8f9fa; padding: 10px; border-radius: 8px; }
 </style>
 """, unsafe_allow_html=True)
@@ -246,7 +246,7 @@ if st.button("🚀 Launch AI Analysis", type="primary"):
     if not query:
         st.error("Please enter a disaster query.")
     else:
-        with st.spinner("🛰️ Gathering real-time intelligence..."):
+        with st.spinner("�卫星 Gathering real-time intelligence..."):
             try:
                 logger.debug("Starting analysis for query: %s", query)
                 # Data Collection
