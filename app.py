@@ -49,7 +49,7 @@ def load_ai_models():
     }
 
 models = load_ai_models()
-groq = Groq(api_key=st.secrets["groq_api_key"])
+groq = Groq(api_key=os.getenv["groq_api_key"])
 
 # --- 🛰️ Data Fetching ---
 def fetch_disaster_data(query, demo_mode=False):
@@ -60,7 +60,7 @@ def fetch_disaster_data(query, demo_mode=False):
     try:
         news = serpapi.search({
             "q": f"{query} disaster",
-            "api_key": st.secrets["serpapi_key"],
+            "api_key": os.getenv["serpapi_key"],
             "engine": "google_news",
             "num": 3
         }).get('news_results', [])[:3]
