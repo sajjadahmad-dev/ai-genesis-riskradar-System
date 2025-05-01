@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import plotly.express as px
 import pandas as pd
 import folium
-from streamlit_folium import st_folium
+from streamlit_folium import folium_static
 
 # Load environment variables
 load_dotenv()
@@ -16,11 +16,11 @@ st.set_page_config(page_title="AI Genesis: RiskRadar", page_icon="🛁")
 
 # --- Demo Data ---
 DEMO_DATA = [
-    {"title": "Hurricane Disrupts Florida Supply Chains", "source": "Bloomberg", "link": "https://bloomberg.com", "snippet": "Major supply chain disruptions following Hurricane in Florida.", "date": "2024-09-12"},
-    {"title": "Insurance Costs Rise Post-Hurricane", "source": "Reuters", "link": "https://reuters.com", "snippet": "Property insurance spikes after disaster hits East Coast.", "date": "2024-09-13"},
-    {"title": "Florida Retail Faces Recovery Challenges", "source": "Forbes", "link": "https://forbes.com", "snippet": "Retail sector in Florida struggles to reopen post hurricane.", "date": "2024-09-14"},
-    {"title": "Construction Boom Expected After Storm", "source": "CNBC", "link": "https://cnbc.com", "snippet": "Florida set for a surge in reconstruction contracts.", "date": "2024-09-14"},
-    {"title": "Energy Sector Braces for Hurricane Impact", "source": "TechCrunch", "link": "https://techcrunch.com", "snippet": "Energy firms prepare for losses as hurricane nears Florida.", "date": "2024-09-13"}
+    {"title": "Hurricane Disrupts Florida Supply Chains", "source": "Bloomberg", "link": "https://bloomberg.com"},
+    {"title": "Insurance Costs Rise Post-Hurricane", "source": "Reuters", "link": "https://reuters.com"},
+    {"title": "Florida Retail Faces Recovery Challenges", "source": "Forbes", "link": "https://forbes.com"},
+    {"title": "Construction Boom Expected After Storm", "source": "CNBC", "link": "https://cnbc.com"},
+    {"title": "Energy Sector Braces for Hurricane Impact", "source": "TechCrunch", "link": "https://techcrunch.com"}
 ]
 
 # Initialize Groq
@@ -50,13 +50,17 @@ def fetch_news(query, demo_mode=False):
             "num": 5
         }).get('organic_results', [])[:5]
 
+        if not results:
+            st.warning("No news found. Showing sample news.")
+            return DEMO_DATA
+
         return [
             {
                 "title": r.get("title", ""),
                 "source": r.get("source", "Unknown"),
                 "link": r.get("link", "#"),
                 "snippet": r.get("snippet", "No summary available."),
-                "date": r.get("date", "Unknown")
+                "position": r.get("position", "")
             }
             for r in results if r.get("title")
         ]
@@ -67,55 +71,66 @@ def fetch_news(query, demo_mode=False):
 # --- Analyze Risks/Opportunities ---
 def analyze_news(articles, query):
     if groq is None:
-        return "Unable to analyze without Groq API."
+        return "Contact news sources for risk and opportunity insights."
 
     try:
-        news_input = "\n".join([f"{a['title']} - {a['snippet']}" for a in articles])
+        titles = "; ".join([a['title'] for a in articles])
         prompt = f"""
-        You are a business analyst assistant. Analyze the following news:
-        {news_input}
-
-        For the topic: {query}
-
-        Provide:
-        1. A short summary of risks and opportunities
-        2. What industries or sectors are impacted?
-        3. Investor strategy recommendation
-        4. Classify each article as [Opportunity, Risk, Neutral]
+        Analyze these news titles: "{titles}" for the topic "{query}".
+        Focus on business risks, market threats, or growth opportunities, including disaster-related impacts.
+        Provide a 2-3 sentence summary and a short strategy for a startup or investor.
         """
-
         response = groq.chat.completions.create(
             model="llama3-70b-8192",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            timeout=15
+            timeout=10
         ).choices[0].message.content.strip()
-
         return response
     except Exception as e:
         st.error(f"Analysis failed: {str(e)}. Using default response.")
-        return "Unable to analyze the data. Please try later."
+        return "Contact news sources for risk and opportunity insights."
+
+# --- Risk Location Map ---
+def show_risk_map(query):
+    location = {
+        "Hurricane Florida": [27.994402, -81.760254],
+        "Earthquake California": [36.778259, -119.417931],
+        "Flood Pakistan": [30.3753, 69.3451],
+        "Typhoon Japan": [36.2048, 138.2529],
+        "Cyclone India": [20.5937, 78.9629]
+    }
+    coords = location.get(query.strip(), [37.0902, -95.7129])
+    m = folium.Map(location=coords, zoom_start=6)
+    folium.Marker(
+        location=coords,
+        popup=f"Risk Zone: {query}",
+        tooltip="Click for location",
+        icon=folium.Icon(color="red", icon="info-sign")
+    ).add_to(m)
+    st.header("📍 Risk Map")
+    folium_static(m)
 
 # --- Streamlit UI ---
-st.title("AI Genesis: RiskRadar")
+st.title("🛁 AI Genesis: RiskRadar")
 st.write("Analyze business risks and opportunities from recent news.")
 
 with st.sidebar:
     st.header("AI Genesis: RiskRadar")
-    st.write("LabLab AI Hackathon")
+    st.write("🔬 Built for LabLab AI Hackathon: /execute: AI Genesis")
     demo_mode = st.checkbox("Demo Mode", value=True)
-    st.header("Technologies")
-    st.write("- Groq Llama3-70B")
+    st.header("🛠 Technologies")
+    st.write("- Groq LLaMA3-70B")
     st.write("- SerpAPI")
-    st.write("- Plotly & Folium")
-    st.header("Links")
-    st.write("[Demo](https://your-streamlit-app-url.streamlit.app)")
-    st.write("[GitHub](https://github.com/your-username/ai-powered-disaster-response-system)")
-    st.write("Built for /execute: AI Genesis")
+    st.write("- Plotly")
+    st.write("- Folium")
+    st.header("🔗 Links")
+    st.write("[🚀 Demo](https://your-streamlit-app-url.streamlit.app)")
+    st.write("[💻 GitHub](https://github.com/your-username/riskradar-ai)")
 
-query = st.text_input("Enter a business topic:", placeholder="e.g., Hurricane Florida Business Impact")
+query = st.text_input("🔍 Enter a business topic:", placeholder="e.g., Hurricane Florida")
 
-if st.button("Analyze"):
+if st.button("🔎 Analyze"):
     if not query:
         st.error("Please enter a business topic.")
     else:
@@ -128,26 +143,18 @@ if st.button("Analyze"):
 
             analysis = analyze_news(articles, query)
 
-            st.success("Analysis Complete!")
+            st.success("✅ Analysis Complete!")
 
-            # --- Chart: Source Distribution ---
+            show_risk_map(query)
+
             source_counts = pd.Series([a['source'] for a in articles]).value_counts().reset_index()
             source_counts.columns = ['Source', 'Count']
             fig = px.bar(source_counts, x='Source', y='Count', title="News Sources", color='Source')
             st.plotly_chart(fig)
 
-            # --- Table: News with Metadata ---
-            st.header("Related News")
-            df = pd.DataFrame(articles)
-            st.dataframe(df[["title", "source", "snippet", "date", "link"]], use_container_width=True)
-
-            # --- Strategic Insights ---
-            st.header("Strategic Insights")
+            st.header("📈 Strategic Insights")
             st.write(analysis)
 
-            # --- Optional: Display a simple map ---
-            if "florida" in query.lower():
-                st.subheader("Affected Area")
-                map_ = folium.Map(location=[27.994402, -81.760254], zoom_start=6)
-                folium.Marker([27.994402, -81.760254], tooltip="Florida Impact Zone").add_to(map_)
-                st_folium(map_, width=700, height=400)
+            st.header("🔖 Related News")
+            df = pd.DataFrame(articles)
+            st.dataframe(df[["title", "snippet", "source", "position", "link"]], use_container_width=True)
