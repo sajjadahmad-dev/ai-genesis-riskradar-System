@@ -1,14 +1,13 @@
 import streamlit as st
 import serpapi
 from groq import Groq
-from datetime import datetime
 import json
-import random
 import os
 from dotenv import load_dotenv
 import logging
-import folium
-from streamlit_folium import folium_static
+import plotly.express as px
+import pandas as pd
+import random
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,9 +18,9 @@ load_dotenv()
 
 # Set page config
 st.set_page_config(
-    page_title="🚀 AI Genesis: Disaster Response",
+    page_title="🚀 AI Genesis: Crisis Pulse",
     layout="wide",
-    page_icon="🌪️",
+    page_icon="🌩️",
     initial_sidebar_state="expanded"
 )
 
@@ -53,44 +52,22 @@ st.markdown("""
         border-radius: 8px;
         padding: 10px;
     }
-    .severity-alert {
-        border: 3px solid transparent;
-        border-image: linear-gradient(to right, #ff416c, #ff4b2b) 1;
-        border-radius: 10px;
-        padding: 15px;
-        margin-bottom: 20px;
-    }
-    .tab-header {
-        font-size: 1.5em;
-        font-weight: bold;
-        margin-bottom: 10px;
-    }
-    .tab1-header { color: #007bff; }
-    .tab2-header { color: #28a745; }
-    .tab3-header { color: #6f42c1; }
     h1, h2, h3, h4 { font-family: 'Arial', sans-serif; }
-    .stMetric { background-color: #f8f9fa; padding: 10px; border-radius: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 🌟 CONSTANTS ---
 DEMO_DATA = {
-    "hurricane": {
-        "news": [
-            {"title": "Category 4 Hurricane Makes Landfall", "snippet": "Winds up to 130 mph reported in coastal areas", "link": "https://www.floridadisaster.org"},
-            {"title": "Evacuations Underway", "snippet": "Over 1 million residents ordered to evacuate", "link": "https://www.fema.gov"},
-            {"title": "Emergency Declared", "snippet": "National Guard deployed to affected regions", "link": "https://www.weather.gov"}
-        ],
-        "geo": {"lat": "27.6648", "lon": "-81.5158", "display_name": "Florida, USA"}
-    },
-    "earthquake": {
-        "news": [
-            {"title": "7.2 Magnitude Earthquake Strikes", "snippet": "Buildings collapsed in downtown area", "link": "#"},
-            {"title": "Tsunami Warning Issued", "snippet": "Coastal residents urged to move to higher ground", "link": "#"},
-            {"title": "International Aid Mobilized", "snippet": "UN sending emergency response teams", "link": "#"}
-        ],
-        "geo": {"lat": "35.6762", "lon": "139.6503", "display_name": "Tokyo, Japan"}
-    }
+    "hurricane": [
+        {"title": "Category 4 Hurricane Hits Florida", "snippet": "Winds up to 130 mph cause widespread concern.", "link": "https://www.floridadisaster.org"},
+        {"title": "Evacuations Underway in Florida", "snippet": "Residents remain hopeful despite challenges.", "link": "https://www.fema.gov"},
+        {"title": "Emergency Declared", "snippet": "Fearful mood as National Guard is deployed.", "link": "https://www.weather.gov"}
+    ],
+    "earthquake": [
+        {"title": "7.2 Earthquake in Tokyo", "snippet": "Residents shaken but resilient.", "link": "#"},
+        {"title": "Tsunami Warning Issued", "snippet": "Coastal areas on high alert.", "link": "#"},
+        {"title": "Aid Mobilized", "snippet": "Global support brings hope.", "link": "#"}
+    ]
 }
 
 # Initialize Groq
@@ -106,9 +83,9 @@ except Exception as e:
     st.error(f"Failed to initialize Groq client: {str(e)}. Running in demo mode only.")
     groq = None
 
-# --- 🛰️ Data Fetching ---
-def fetch_disaster_data(query, demo_mode=False):
-    logger.debug(f"Fetching data for query: {query}, demo_mode: {demo_mode}")
+# --- 📰 Data Fetching ---
+def fetch_news(query, demo_mode=False):
+    logger.debug(f"Fetching news for query: {query}, demo_mode: {demo_mode}")
     if demo_mode or groq is None:
         st.info("Using demo data due to demo mode or Groq failure.")
         disaster_type = "hurricane" if "hurricane" in query.lower() else random.choice(list(DEMO_DATA.keys()))
@@ -127,105 +104,70 @@ def fetch_disaster_data(query, demo_mode=False):
             "num": 3
         }).get('news_results', [])[:3]
         
-        # Use demo geo data
-        geo_data = DEMO_DATA.get("hurricane" if "hurricane" in query.lower() else "earthquake", {}).get("geo")
-        
         if not news:
             st.warning("No news results from SerpAPI. Using demo data.")
             logger.debug("No news results, using demo data.")
             return DEMO_DATA["hurricane"]
         
-        logger.debug("Data fetched successfully.")
-        return {
-            "news": [n for n in news if n.get('title')],
-            "geo": geo_data
-        }
+        logger.debug("News fetched successfully.")
+        return [
+            {"title": n.get("title", ""), "snippet": n.get("snippet", ""), "link": n.get("link", "#")}
+            for n in news if n.get("title")
+        ]
     except Exception as e:
-        logger.error(f"Data fetch error: {str(e)}")
-        st.error(f"Data fetch error: {str(e)}. Using demo data.")
+        logger.error(f"News fetch error: {str(e)}")
+        st.error(f"News fetch error: {str(e)}. Using demo data.")
         return DEMO_DATA["hurricane"]
 
-# --- 🤖 AI Analysis Engine ---
-def analyze_disaster(query, news_texts, geo_data):
-    logger.debug("Starting disaster analysis...")
+# --- 🤖 Sentiment Analysis ---
+def analyze_sentiment(news_items):
+    logger.debug("Starting sentiment analysis...")
+    sentiments = []
+    
+    if groq is None:
+        logger.debug("Using default sentiment analysis (no Groq).")
+        return ["Positive" if i == 1 else "Negative" if i == 2 else "Neutral" for i in range(len(news_items))]
+    
     try:
-        # Default analysis for demo mode or if Groq fails
-        default_analysis = {
-            "type": "Category 4 Hurricane" if "hurricane" in query.lower() else "7.2 Magnitude Earthquake",
-            "severity": 9,
-            "severity_rationale": "High impact based on demo data.",
-            "timeline": [
-                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Disaster landfall reported",
-                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Peak impact observed",
-                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}: Disaster begins to subside"
-            ],
-            "actions": [
-                "Evacuate high-risk areas, especially coastal and flood-prone zones.",
-                "Activate emergency services, including responders and rescue teams.",
-                "Establish communication networks for affected areas."
-            ],
-            "resources": [
-                "Food and water (100,000 units)",
-                "Medical supplies (50,000 units)",
-                "Generators and fuel (500 units)"
-            ],
-            "sentiment": "Anxious and fearful due to severe disaster impact",
-            "locations": []
-        }
-        
-        if groq is None:
-            logger.debug("Using default analysis (no Groq).")
-            return default_analysis
-        
-        # Groq-based analysis
-        disaster_prompt = f"""
-        Analyze this disaster scenario and provide specific classification:
-        News Headlines: {news_texts[:2]}
-        
-        Respond with valid JSON containing:
-        - "type": specific disaster type (e.g., "Category 4 Hurricane")
-        - "severity": integer from 1 to 10
-        - "severity_rationale": brief explanation
-        - "timeline": ["3 critical events with timestamps in format YYYY-MM-DD HH:MM:SS"]
-        - "actions": ["3 prioritized actions"]
-        - "resources": ["3 most needed resources"]
-        - "sentiment": "analysis of public mood"
-        - "locations": ["list of extracted locations, if any"]
-        Ensure all keys are double-quoted and values are properly formatted.
-        """
-        
-        try:
-            logger.debug("Querying Groq for disaster analysis...")
-            response = groq.chat.completions.create(
-                model="llama3-70b-8192",
-                messages=[{"role": "user", "content": disaster_prompt}],
-                response_format={"type": "json_object"},
-                temperature=0.3,
-                timeout=30
-            ).choices[0].message.content
-            analysis = json.loads(response)
-            logger.debug("Groq analysis completed.")
-            return {**analysis, "geo": geo_data}
-        except Exception as e:
-            logger.warning(f"Groq analysis failed: {str(e)}")
-            st.warning(f"Groq analysis failed: {str(e)}. Using default analysis.")
-            return default_analysis
+        for news in news_items:
+            prompt = f"""
+            Analyze the sentiment of this news snippet and classify it as 'Positive', 'Negative', or 'Neutral':
+            Title: {news['title']}
+            Snippet: {news['snippet']}
+            Respond with only the sentiment label: Positive, Negative, or Neutral.
+            """
+            try:
+                logger.debug("Querying Groq for sentiment analysis...")
+                response = groq.chat.completions.create(
+                    model="llama3-70b-8192",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.3,
+                    timeout=15
+                ).choices[0].message.content.strip()
+                sentiment = response if response in ["Positive", "Negative", "Neutral"] else "Neutral"
+                sentiments.append(sentiment)
+                logger.debug(f"Sentiment for '{news['title']}': {sentiment}")
+            except Exception as e:
+                logger.warning(f"Groq sentiment analysis failed for '{news['title']}': {str(e)}")
+                sentiments.append("Neutral")
     except Exception as e:
-        logger.error(f"Analysis failed: {str(e)}")
-        st.error(f"Analysis failed: {str(e)}. Please try again.")
-        return default_analysis
+        logger.error(f"Sentiment analysis failed: {str(e)}")
+        st.error(f"Sentiment analysis failed: {str(e)}. Using default sentiments.")
+        return ["Neutral"] * len(news_items)
+    
+    return sentiments
 
 # --- 🎨 Streamlit UI ---
 with st.sidebar:
-    st.markdown("<h1 style='color: white;'>AI Genesis</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='color: white;'>AI Genesis: Crisis Pulse</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color: #d1d5db;'>LabLab AI Hackathon Entry</p>", unsafe_allow_html=True)
     st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
     demo_mode = st.checkbox("Demo Mode (Use sample data)", value=True)
     st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
     st.markdown("<h3 style='color: white;'>🛠️ Technologies Used</h3>", unsafe_allow_html=True)
-    st.markdown("- Groq Llama3-70B (Analysis)", style={"color": "#d1d5db"})
+    st.markdown("- Groq Llama3-70B (Sentiment Analysis)", style={"color": "#d1d5db"})
     st.markdown("- SerpAPI (Real-time News)", style={"color": "#d1d5db"})
-    st.markdown("- Folium (Interactive Maps)", style={"color": "#d1d5db"})
+    st.markdown("- Plotly (Visualizations)", style={"color": "#d1d5db"})
     st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
     st.markdown("<h3 style='color: white;'>🔗 Links</h3>", unsafe_allow_html=True)
     st.markdown("[Working Demo](https://your-streamlit-app-url.streamlit.app) *(Update after deployment)*", style={"color": "#d1d5db"})
@@ -233,115 +175,62 @@ with st.sidebar:
     st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
     st.markdown("<p style='color: #d1d5db;'>Made with ❤️ for /execute: AI Genesis</p>", unsafe_allow_html=True)
 
-st.markdown("<h1 style='color: #1a3c6e;'>🌪️ AI-Powered Disaster Response System</h1>", unsafe_allow_html=True)
-st.markdown("<p style='color: #4a5568;'>Real-time disaster intelligence powered by Groq and SerpAPI</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='color: #1a3c6e;'>🌩️ AI Genesis: Crisis Pulse</h1>", unsafe_allow_html=True)
+st.markdown("<p style='color: #4a5568;'>Real-time disaster sentiment analysis powered by Groq and SerpAPI</p>", unsafe_allow_html=True)
 
 query = st.text_input(
-    "📍 Enter Disaster Location/Event:", 
+    "📍 Enter Disaster Event:", 
     placeholder="e.g., Florida Hurricane 2025",
-    help="Enter a location or specific disaster event"
+    help="Enter a disaster event or location"
 )
 
-if st.button("🚀 Launch AI Analysis", type="primary"):
+if st.button("🚀 Analyze Sentiment", type="primary"):
     if not query:
-        st.error("Please enter a disaster query.")
+        st.error("Please enter a disaster event.")
     else:
-        with st.spinner("🛰️ Gathering real-time intelligence..."):
+        with st.spinner("📰 Fetching news and analyzing sentiment..."):
             try:
                 logger.debug("Starting analysis for query: %s", query)
-                # Data Collection
-                data = fetch_disaster_data(query, demo_mode=demo_mode)
-                logger.debug("Data fetched: %s", data)
-                news_texts = [f"{n['title']}: {n.get('snippet', '')}" for n in data["news"]]
+                # Fetch news
+                news_items = fetch_news(query, demo_mode=demo_mode)
+                logger.debug("News fetched: %s", news_items)
                 
-                if not news_texts:
+                if not news_items:
                     logger.error("No valid news sources found.")
                     st.error("No valid news sources found. Try another query or enable Demo Mode.")
                     st.stop()
                 
-                # AI Analysis
-                analysis = analyze_disaster(query, news_texts, data["geo"])
-                logger.debug("Analysis result: %s", analysis)
-                if analysis is None:
-                    logger.error("Analysis returned no results.")
-                    st.error("Analysis returned no results. Please try again.")
-                    st.stop()
+                # Analyze sentiment
+                sentiments = analyze_sentiment(news_items)
+                logger.debug("Sentiments: %s", sentiments)
                 
                 # --- Results Dashboard ---
-                st.success("✅ AI Analysis Complete!")
+                st.success("✅ Analysis Complete!")
                 
-                # Severity Alert
-                severity_color = "red" if analysis["severity"] > 7 else "orange" if analysis["severity"] > 4 else "green"
-                st.markdown(f"""
-                <div class='severity-alert' style='background:{severity_color}; color:white;'>
-                    <h2 style='margin:0;'>🚨 {analysis['type'].upper()} DETECTED</h2>
-                    <h1 style='margin:0; text-align:center;'>SEVERITY: {analysis['severity']}/10</h1>
-                    <p style='margin:0;'><i>{analysis['severity_rationale']}</i></p>
-                </div>
-                """, unsafe_allow_html=True)
+                # Sentiment Visualization
+                sentiment_counts = pd.Series(sentiments).value_counts().reset_index()
+                sentiment_counts.columns = ['Sentiment', 'Count']
+                fig = px.pie(
+                    sentiment_counts,
+                    names='Sentiment',
+                    values='Count',
+                    title="Sentiment Distribution",
+                    color='Sentiment',
+                    color_discrete_map={'Positive': '#28a745', 'Negative': '#dc3545', 'Neutral': '#6c757d'}
+                )
+                fig.update_layout(margin=dict(t=50, b=50, l=50, r=50))
+                st.plotly_chart(fig, use_container_width=True)
                 
-                # Map Visualization
-                if analysis["geo"]:
-                    col1, col2 = st.columns([2, 1])
-                    with col1:
-                        try:
-                            m = folium.Map(
-                                location=[float(analysis["geo"]["lat"]), float(analysis["geo"]["lon"])],
-                                zoom_start=7,
-                                tiles="Stamen Terrain"
-                            )
-                            folium.Marker(
-                                [analysis["geo"]["lat"], analysis["geo"]["lon"]],
-                                popup=f"<b>{query}</b><br>Severity: {analysis['severity']}/10",
-                                icon=folium.Icon(color=severity_color, icon="cloud")
-                            ).add_to(m)
-                            folium_static(m)
-                        except:
-                            logger.warning("Map rendering failed.")
-                            st.warning("Map rendering failed.")
-                    
-                    with col2:
-                        st.metric("📍 Primary Location", analysis["geo"].get("display_name", "Unknown"))
-                        st.metric("🌍 Coordinates", f"{analysis['geo']['lat']}, {analysis['geo']['lon']}")
-                        st.metric("📌 Other Locations", len(analysis["locations"]))
-                
-                # Timeline and Actions
-                tab1, tab2, tab3 = st.tabs([
-                    "📅 Timeline",
-                    "🛠️ Response Plan",
-                    "📰 News Sources"
-                ])
-                
-                with tab1:
-                    st.markdown("<h3 class='tab-header tab1-header'>Critical Events Timeline</h3>", unsafe_allow_html=True)
-                    for event in analysis["timeline"]:
-                        st.markdown(f"⏱️ {event}")
-                
-                with tab2:
-                    st.markdown("<h3 class='tab-header tab2-header'>Response Plan</h3>", unsafe_allow_html=True)
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.markdown("<h4 style='color: #2d3748;'>Priority Actions</h4>", unsafe_allow_html=True)
-                        for action in analysis["actions"]:
-                            st.markdown(f"✅ {action}")
-                    with col2:
-                        st.markdown("<h4 style='color: #2d3748;'>Resources Needed</h4>", unsafe_allow_html=True)
-                        for resource in analysis["resources"]:
-                            st.markdown(f"📦 {resource}")
-                    
+                # News Articles
+                st.markdown("<h3 style='color: #007bff;'>📰 News Articles</h3>", unsafe_allow_html=True)
+                for news, sentiment in zip(news_items, sentiments):
+                    st.markdown(f"""
+                    ### {news['title']}
+                    **Sentiment**: {sentiment}  
+                    {news.get('snippet', '')}  
+                    *[Source]({news.get('link', 'https://www.fema.gov')})*
+                    """)
                     st.markdown("---")
-                    st.markdown("<h4 style='color: #2d3748;'>Public Sentiment Analysis</h4>", unsafe_allow_html=True)
-                    st.write(f"Overall mood: **{analysis['sentiment']}**")
-                
-                with tab3:
-                    st.markdown("<h3 class='tab-header tab3-header'>News Sources</h3>", unsafe_allow_html=True)
-                    for news in data["news"]:
-                        st.markdown(f"""
-                        ### {news['title']}
-                        {news.get('snippet', '')}
-                        *[Source]({news.get('link', 'https://www.fema.gov')})*
-                        """)
-                        st.markdown("---")
                 
                 logger.debug("Results dashboard rendered successfully.")
             except Exception as e:
@@ -354,7 +243,7 @@ st.markdown("""
 <h3 style='color: #1a3c6e;'>🏆 Hackathon Compliance</h3>
 ✅ **AI Integration** (Groq Llama3-70B)  
 ✅ **Real-Time Data** (SerpAPI)  
-✅ **Advanced Visualization** (Folium Maps)  
+✅ **Advanced Visualization** (Plotly)  
 ✅ **Professional UI** (Streamlit)  
 ✅ **Complete Documentation**  
 """, unsafe_allow_html=True)
