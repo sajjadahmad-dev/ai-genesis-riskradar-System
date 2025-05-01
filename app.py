@@ -1,5 +1,5 @@
 import streamlit as st
-import serpapi
+from serpapi import GoogleSearch
 from groq import Groq
 import os
 from dotenv import load_dotenv
@@ -41,13 +41,16 @@ def fetch_news(query, demo_mode=False):
         serpapi_key = st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", ""))
         if not serpapi_key:
             raise ValueError("SERPAPI_KEY is missing.")
-        results = serpapi.search({
+        
+        params = {
             "q": query,
             "api_key": serpapi_key,
             "engine": "google",
             "num": 5
-        }).get('organic_results', [])[:5]
-        
+        }
+        search = GoogleSearch(params)
+        results = search.get_dict().get('organic_results', [])[:5]
+
         if not results:
             st.warning("No news found. Showing sample news.")
             return DEMO_DATA
