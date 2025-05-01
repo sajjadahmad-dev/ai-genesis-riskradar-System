@@ -7,23 +7,24 @@ import plotly.express as px
 import pandas as pd
 import folium
 from streamlit_folium import folium_static
+from textblob import TextBlob
 
 # Load environment variables
 load_dotenv()
 
 # Set page config
-st.set_page_config(page_title="AI Genesis: RiskRadar", page_icon="🛁")
+st.set_page_config(page_title="AI Genesis: RiskRadar", page_icon="📡")
 
 # --- Demo Data ---
 DEMO_DATA = [
-    {"title": "Hurricane Disrupts Florida Supply Chains", "source": "Bloomberg", "link": "https://bloomberg.com"},
-    {"title": "Insurance Costs Rise Post-Hurricane", "source": "Reuters", "link": "https://reuters.com"},
-    {"title": "Florida Retail Faces Recovery Challenges", "source": "Forbes", "link": "https://forbes.com"},
-    {"title": "Construction Boom Expected After Storm", "source": "CNBC", "link": "https://cnbc.com"},
-    {"title": "Energy Sector Braces for Hurricane Impact", "source": "TechCrunch", "link": "https://techcrunch.com"}
+    {"title": "Hurricane Disrupts Florida Supply Chains", "source": "Bloomberg", "link": "https://bloomberg.com", "snippet": "Severe storm hits Florida's supply chains.", "position": 1},
+    {"title": "Insurance Costs Rise Post-Hurricane", "source": "Reuters", "link": "https://reuters.com", "snippet": "Insurance rates spike after the recent hurricane.", "position": 2},
+    {"title": "Florida Retail Faces Recovery Challenges", "source": "Forbes", "link": "https://forbes.com", "snippet": "Retailers struggle to recover from the storm's impact.", "position": 3},
+    {"title": "Construction Boom Expected After Storm", "source": "CNBC", "link": "https://cnbc.com", "snippet": "Experts predict a construction boom as Florida recovers.", "position": 4},
+    {"title": "Energy Sector Braces for Hurricane Impact", "source": "TechCrunch", "link": "https://techcrunch.com", "snippet": "Energy companies prepare for disruption from the storm.", "position": 5}
 ]
 
-# Initialize Groq
+# Initialize Groq API
 try:
     groq_api_key = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY", ""))
     if not groq_api_key:
@@ -41,17 +42,16 @@ def fetch_news(query, demo_mode=False):
 
     try:
         serpapi_key = st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", ""))
-        if not serpapi_key:
-            raise ValueError("SERPAPI_KEY is missing.")
+        search_query = f"{query} business impact OR market trends"
         results = serpapi.search({
-            "q": f"{query} business impact",
+            "q": search_query,
             "api_key": serpapi_key,
             "engine": "google",
             "num": 5
         }).get('organic_results', [])[:5]
 
         if not results:
-            st.warning("No news found. Showing sample news.")
+            st.warning("No results found. Showing sample news.")
             return DEMO_DATA
 
         return [
@@ -59,8 +59,8 @@ def fetch_news(query, demo_mode=False):
                 "title": r.get("title", ""),
                 "source": r.get("source", "Unknown"),
                 "link": r.get("link", "#"),
-                "snippet": r.get("snippet", "No summary available."),
-                "position": r.get("position", "")
+                "snippet": r.get("snippet", "No description available"),
+                "position": r.get("position", "N/A")
             }
             for r in results if r.get("title")
         ]
@@ -91,6 +91,17 @@ def analyze_news(articles, query):
         st.error(f"Analysis failed: {str(e)}. Using default response.")
         return "Contact news sources for risk and opportunity insights."
 
+# --- Sentiment Analysis ---
+def analyze_sentiment(text):
+    blob = TextBlob(text)
+    polarity = blob.sentiment.polarity
+    if polarity > 0:
+        return "Positive", polarity
+    elif polarity < 0:
+        return "Negative", polarity
+    else:
+        return "Neutral", polarity
+
 # --- Risk Location Map ---
 def show_risk_map(query):
     location = {
@@ -100,7 +111,9 @@ def show_risk_map(query):
         "Typhoon Japan": [36.2048, 138.2529],
         "Cyclone India": [20.5937, 78.9629]
     }
+
     coords = location.get(query.strip(), [37.0902, -95.7129])
+    
     m = folium.Map(location=coords, zoom_start=6)
     folium.Marker(
         location=coords,
@@ -108,11 +121,12 @@ def show_risk_map(query):
         tooltip="Click for location",
         icon=folium.Icon(color="red", icon="info-sign")
     ).add_to(m)
+
     st.header("📍 Risk Map")
     folium_static(m)
 
 # --- Streamlit UI ---
-st.title("🛁 AI Genesis: RiskRadar")
+st.title("📡 AI Genesis: RiskRadar")
 st.write("Analyze business risks and opportunities from recent news.")
 
 with st.sidebar:
@@ -145,16 +159,28 @@ if st.button("🔎 Analyze"):
 
             st.success("✅ Analysis Complete!")
 
+            # Show map
             show_risk_map(query)
 
+            # Sentiment analysis of news
+            sentiment_analysis = [analyze_sentiment(a["title"]) for a in articles]
+            sentiment_df = pd.DataFrame(sentiment_analysis, columns=["Sentiment", "Polarity"])
+            sentiment_df["Article"] = [a["title"] for a in articles]
+            fig = px.bar(sentiment_df, x="Article", y="Polarity", color="Sentiment", title="Sentiment Analysis of News")
+            st.plotly_chart(fig)
+
+            # News source bar chart
             source_counts = pd.Series([a['source'] for a in articles]).value_counts().reset_index()
             source_counts.columns = ['Source', 'Count']
             fig = px.bar(source_counts, x='Source', y='Count', title="News Sources", color='Source')
             st.plotly_chart(fig)
 
+            # Analysis summary
             st.header("📈 Strategic Insights")
             st.write(analysis)
 
-            st.header("🔖 Related News")
+            # News table
+            st.header("📰 Related News")
             df = pd.DataFrame(articles)
-            st.dataframe(df[["title", "snippet", "source", "position", "link"]], use_container_width=True)
+            columns = ["title", "snippet", "source", "link"]
+            st.dataframe(df[columns], use_container_width=True)
