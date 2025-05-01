@@ -5,6 +5,8 @@ import os
 from dotenv import load_dotenv
 import plotly.express as px
 import pandas as pd
+import folium
+from streamlit_folium import folium_static
 
 # Load environment variables
 load_dotenv()
@@ -36,7 +38,7 @@ def fetch_news(query, demo_mode=False):
     if demo_mode or groq is None:
         st.info("Showing sample news (demo mode).")
         return DEMO_DATA
-    
+
     try:
         serpapi_key = st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", ""))
         if not serpapi_key:
@@ -47,11 +49,11 @@ def fetch_news(query, demo_mode=False):
             "engine": "google",
             "num": 5
         }).get('organic_results', [])[:5]
-        
+
         if not results:
             st.warning("No news found. Showing sample news.")
             return DEMO_DATA
-        
+
         return [
             {
                 "title": r.get("title", ""),
@@ -68,7 +70,7 @@ def fetch_news(query, demo_mode=False):
 def analyze_news(articles, query):
     if groq is None:
         return "Contact news sources for risk and opportunity insights."
-    
+
     try:
         titles = "; ".join([a['title'] for a in articles])
         prompt = f"""
@@ -87,60 +89,79 @@ def analyze_news(articles, query):
         st.error(f"Analysis failed: {str(e)}. Using default response.")
         return "Contact news sources for risk and opportunity insights."
 
+# --- Risk Location Map ---
+def show_risk_map(query):
+    # Default coordinates (Florida)
+    location = {
+        "Hurricane Florida": [27.994402, -81.760254],
+        "Earthquake California": [36.778259, -119.417931],
+        "Flood Pakistan": [30.3753, 69.3451],
+        "Typhoon Japan": [36.2048, 138.2529],
+        "Cyclone India": [20.5937, 78.9629]
+    }
+
+    # Find coordinates for known queries, fallback to center of USA
+    coords = location.get(query.strip(), [37.0902, -95.7129])
+    
+    m = folium.Map(location=coords, zoom_start=6)
+    folium.Marker(
+        location=coords,
+        popup=f"Risk Zone: {query}",
+        tooltip="Click for location",
+        icon=folium.Icon(color="red", icon="info-sign")
+    ).add_to(m)
+
+    st.header("📍 Risk Map")
+    folium_static(m)
+
 # --- Streamlit UI ---
-st.title("AI Genesis: RiskRadar")
+st.title("📡 AI Genesis: RiskRadar")
 st.write("Analyze business risks and opportunities from recent news.")
 
 with st.sidebar:
     st.header("AI Genesis: RiskRadar")
-    st.write("LabLab AI Hackathon")
+    st.write("🔬 Built for LabLab AI Hackathon: /execute: AI Genesis")
     demo_mode = st.checkbox("Demo Mode", value=True)
-    st.header("Technologies")
-    st.write("- Groq Llama3-70B")
+    st.header("🛠 Technologies")
+    st.write("- Groq LLaMA3-70B")
     st.write("- SerpAPI")
     st.write("- Plotly")
-    st.header("Links")
-    st.write("[Demo](https://your-streamlit-app-url.streamlit.app)")
-    st.write("[GitHub](https://github.com/your-username/ai-powered-disaster-response-system)")
-    st.write("Built for /execute: AI Genesis")
+    st.write("- Folium")
+    st.header("🔗 Links")
+    st.write("[🚀 Demo](https://your-streamlit-app-url.streamlit.app)")
+    st.write("[💻 GitHub](https://github.com/your-username/riskradar-ai)")
 
-query = st.text_input("Enter a business topic:", placeholder="e.g., Hurricane Florida Business Impact")
+query = st.text_input("🔍 Enter a business topic:", placeholder="e.g., Hurricane Florida")
 
-if st.button("Analyze"):
+if st.button("🔎 Analyze"):
     if not query:
         st.error("Please enter a business topic.")
     else:
         with st.spinner("Fetching news and analyzing..."):
-            # Fetch news
             articles = fetch_news(query, demo_mode=demo_mode)
-            
+
             if not articles:
                 st.error("No news found. Try another topic.")
                 st.stop()
-            
-            # Analyze news
+
             analysis = analyze_news(articles, query)
-            
-            # --- Results ---
-            st.success("Analysis Complete!")
-            
-            # News Source Bar Chart
+
+            st.success("✅ Analysis Complete!")
+
+            # Show map
+            show_risk_map(query)
+
+            # Bar chart of sources
             source_counts = pd.Series([a['source'] for a in articles]).value_counts().reset_index()
             source_counts.columns = ['Source', 'Count']
-            fig = px.bar(
-                source_counts,
-                x='Source',
-                y='Count',
-                title="News Sources",
-                color='Source'
-            )
+            fig = px.bar(source_counts, x='Source', y='Count', title="News Sources", color='Source')
             st.plotly_chart(fig)
-            
-            # Analysis
-            st.header("Strategic Insights")
+
+            # Analysis summary
+            st.header("📈 Strategic Insights")
             st.write(analysis)
-            
-            # News List
-            st.header("Related News")
+
+            # News table
+            st.header("📰 Related News")
             df = pd.DataFrame(articles)
             st.dataframe(df[["title", "source", "link"]], use_container_width=True)
