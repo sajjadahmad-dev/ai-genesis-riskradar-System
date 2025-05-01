@@ -10,7 +10,44 @@ import pandas as pd
 load_dotenv()
 
 # Set page config
-st.set_page_config(page_title="AI Genesis: Aid Finder", page_icon="🛡️")
+st.set_page_config(page_title="🛡️ AI Genesis: Aid Finder", page_icon="🛡️", layout="wide")
+
+# --- Custom CSS for beautiful styling ---
+st.markdown("""
+    <style>
+    body {
+        background-color: #f8f9fa;
+        color: #333333;
+        font-family: 'Segoe UI', sans-serif;
+    }
+    .main {
+        background-color: #ffffff;
+        padding: 2rem;
+        border-radius: 1rem;
+        box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    }
+    h1 {
+        color: #007bff;
+    }
+    .stButton>button {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 0.5rem 1.5rem;
+        border-radius: 5px;
+        font-weight: bold;
+        transition: all 0.3s ease-in-out;
+    }
+    .stButton>button:hover {
+        background-color: #0056b3;
+        transform: scale(1.05);
+    }
+    .stSidebar {
+        background-color: #f1f3f5;
+        padding: 1rem;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # --- Demo Data ---
 DEMO_DATA = {
@@ -26,7 +63,7 @@ DEMO_DATA = {
     ]
 }
 
-# Initialize Groq
+# --- Groq Init ---
 try:
     groq_api_key = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY", ""))
     if not groq_api_key:
@@ -39,7 +76,7 @@ except Exception:
 # --- Fetch Resources ---
 def fetch_resources(query, demo_mode=False):
     if demo_mode or groq is None:
-        st.info("Showing sample resources (demo mode).")
+        st.info("💡 Showing sample resources (demo mode).")
         disaster_type = "hurricane" if "hurricane" in query.lower() else "earthquake"
         return DEMO_DATA[disaster_type]
     
@@ -55,7 +92,7 @@ def fetch_resources(query, demo_mode=False):
         }).get('organic_results', [])[:3]
         
         if not results:
-            st.warning("No resources found. Showing sample resources.")
+            st.warning("⚠️ No resources found. Showing sample resources.")
             return DEMO_DATA["hurricane"]
         
         types = ["Shelter", "Food Bank", "Aid Agency"]
@@ -69,7 +106,7 @@ def fetch_resources(query, demo_mode=False):
             for i, r in enumerate(results) if r.get("title")
         ]
     except Exception:
-        st.error("Error fetching resources. Showing sample resources.")
+        st.error("❌ Error fetching resources. Showing sample resources.")
         return DEMO_DATA["hurricane"]
 
 # --- Generate Aid Tips ---
@@ -82,7 +119,7 @@ def generate_aid_tips(query, resources):
     try:
         for resource in resources:
             prompt = f"""
-            For the disaster '{query}' and resource '{resource['name']}' ({resource['type']}), provide a short aid tip (1 sentence). Example: "Contact Miami Red Cross for safe shelter and meals."
+            For the disaster '{query}' and resource '{resource['name']}' ({resource['type']}), provide a short aid tip (1 sentence).
             """
             try:
                 response = groq.chat.completions.create(
@@ -100,61 +137,62 @@ def generate_aid_tips(query, resources):
     return tips
 
 # --- Streamlit UI ---
-st.title("AI Genesis: Aid Finder")
-st.write("Locate disaster relief resources and get practical aid tips.")
+st.title("🛡️ AI Genesis: Aid Finder")
+st.subheader("🌍 Locate disaster relief resources and get instant AI-powered aid tips")
 
 with st.sidebar:
-    st.header("AI Genesis: Aid Finder")
-    st.write("LabLab AI Hackathon")
+    st.header("⚙️ Settings")
     demo_mode = st.checkbox("Demo Mode", value=True)
-    st.header("Technologies")
-    st.write("- Groq Llama3-70B")
-    st.write("- SerpAPI")
-    st.write("- Plotly")
-    st.header("Links")
-    st.write("[Demo](https://your-streamlit-app-url.streamlit.app)")
-    st.write("[GitHub](https://github.com/your-username/ai-powered-disaster-response-system)")
-    st.write("Built for /execute: AI Genesis")
+    
+    st.markdown("---")
+    st.header("🧠 Tech Stack")
+    st.markdown("- Groq `LLaMA3-70B`\n- SerpAPI\n- Plotly\n- Streamlit\n- OpenAI")
+    
+    st.markdown("---")
+    st.header("🔗 Quick Links")
+    st.markdown("[🌐 Live Demo](https://your-streamlit-app-url.streamlit.app)")
+    st.markdown("[💻 GitHub](https://github.com/your-username/ai-powered-disaster-response-system)")
+    st.caption("🏆 Built for /execute: AI Genesis Hackathon")
 
-query = st.text_input("Enter Location and Disaster:", placeholder="e.g., Miami Hurricane")
+query = st.text_input("📍 Enter Location and Disaster:", placeholder="e.g., Miami Hurricane")
 
-if st.button("Find Resources"):
+if st.button("🔍 Find Resources"):
     if not query:
-        st.error("Please enter a location and disaster.")
+        st.error("❗ Please enter a location and disaster.")
     else:
-        with st.spinner("Fetching resources..."):
-            # Fetch resources
+        with st.spinner("🔎 Fetching resources..."):
             resources = fetch_resources(query, demo_mode=demo_mode)
             
             if not resources:
                 st.error("No resources found. Try another query.")
                 st.stop()
             
-            # Generate aid tips
             tips = generate_aid_tips(query, resources)
             
-            # --- Results ---
-            st.success("Resources Found!")
-            
-            # Resource Type Pie Chart
+            st.success("✅ Resources Found!")
+
+            # Pie Chart of Resource Types
             type_counts = pd.Series([r['type'] for r in resources]).value_counts().reset_index()
             type_counts.columns = ['Type', 'Count']
             fig = px.pie(
                 type_counts,
                 names='Type',
                 values='Count',
-                title="Resource Types",
+                title="🧩 Resource Types",
                 color='Type',
                 color_discrete_map={'Shelter': '#28a745', 'Food Bank': '#007bff', 'Aid Agency': '#6c757d'}
             )
-            st.plotly_chart(fig)
-            
-            # Resource List
-            st.header("Relief Resources")
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Resource Cards
+            st.header("📦 Relief Resources")
             for resource, tip in zip(resources, tips):
-                st.write(f"**{resource['name']}**")
-                st.write(f"*Type*: {resource['type']}")
-                st.write(f"*Description*: {resource.get('description', '')}")
-                st.write(f"*Aid Tip*: {tip}")
-                st.write(f"[Visit Resource]({resource.get('link', 'https://www.fema.gov')})")
-                st.write("---")
+                st.markdown(f"""
+                <div style='padding:1rem; margin-bottom:1rem; border-left:5px solid #007bff; background-color:#f1f3f5; border-radius:8px'>
+                    <h4 style='margin-bottom:0.2rem;'>{resource['name']}</h4>
+                    <p style='margin:0'><b>Type:</b> {resource['type']}</p>
+                    <p style='margin:0'><b>Description:</b> {resource.get('description', '')}</p>
+                    <p style='margin:0'><b>💡 Tip:</b> {tip}</p>
+                    <a href='{resource.get('link', '#')}' target='_blank'>🔗 Visit Resource</a>
+                </div>
+                """, unsafe_allow_html=True)
