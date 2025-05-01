@@ -1,7 +1,6 @@
 import streamlit as st
 import serpapi
 from groq import Groq
-import json
 import os
 from dotenv import load_dotenv
 import logging
@@ -165,13 +164,13 @@ with st.sidebar:
     demo_mode = st.checkbox("Demo Mode (Use sample data)", value=True)
     st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
     st.markdown("<h3 style='color: white;'>🛠️ Technologies Used</h3>", unsafe_allow_html=True)
-    st.markdown("- Groq Llama3-70B (Sentiment Analysis)", style={"color": "#d1d5db"})
-    st.markdown("- SerpAPI (Real-time News)", style={"color": "#d1d5db"})
-    st.markdown("- Plotly (Visualizations)", style={"color": "#d1d5db"})
+    st.markdown("<span style='color: #d1d5db;'>- Groq Llama3-70B (Sentiment Analysis)</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color: #d1d5db;'>- SerpAPI (Real-time News)</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color: #d1d5db;'>- Plotly (Visualizations)</span>", unsafe_allow_html=True)
     st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
     st.markdown("<h3 style='color: white;'>🔗 Links</h3>", unsafe_allow_html=True)
-    st.markdown("[Working Demo](https://your-streamlit-app-url.streamlit.app) *(Update after deployment)*", style={"color": "#d1d5db"})
-    st.markdown("[GitHub Repo](https://github.com/your-username/ai-powered-disaster-response-system)", style={"color": "#d1d5db"})
+    st.markdown("<span style='color: #d1d5db;'>[Working Demo](https://your-streamlit-app-url.streamlit.app) *(Update after deployment)*</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color: #d1d5db;'>[GitHub Repo](https://github.com/your-username/ai-powered-disaster-response-system)</span>", unsafe_allow_html=True)
     st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
     st.markdown("<p style='color: #d1d5db;'>Made with ❤️ for /execute: AI Genesis</p>", unsafe_allow_html=True)
 
