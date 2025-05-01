@@ -17,46 +17,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for clean, professional styling
-st.markdown("""
-<style>
-    .stApp {
-        background: #ffffff;
-    }
-    .sidebar .sidebar-content {
-        background: linear-gradient(to bottom, #4b6cb7, #182848);
-        color: white;
-        padding: 20px;
-        border-radius: 10px;
-    }
-    .stButton>button {
-        background-color: #007bff;
-        color: white;
-        border-radius: 5px;
-        padding: 8px 16px;
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-    }
-    .stButton>button:hover {
-        background-color: #0056b3;
-    }
-    .stTextInput>div>input {
-        border: 1px solid #007bff;
-        border-radius: 5px;
-        padding: 8px;
-        font-family: Arial, sans-serif;
-        font-size: 14px;
-    }
-    h1, h2, h3, p {
-        font-family: Arial, sans-serif;
-        color: #1a3c6e;
-    }
-    .stMarkdown p {
-        color: #333333;
-        font-size: 14px;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # --- 🌟 Demo Data ---
 DEMO_DATA = {
