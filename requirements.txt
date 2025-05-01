@@ -1,6 +1,7 @@
 streamlit
-serpapi
-groq
 plotly
-python-dotenv
 pandas
+python-dotenv
+groq
+streamlit-folium
+folium
