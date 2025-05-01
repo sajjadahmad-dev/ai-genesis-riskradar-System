@@ -126,11 +126,11 @@ def show_risk_map(query):
     folium_static(m)
 
 # --- Streamlit UI ---
-st.title("📡 AI Genesis: RiskRadar")
+st.title("📡RiskRadar")
 st.write("Analyze business risks and opportunities from recent news.")
 
 with st.sidebar:
-    st.header("AI Genesis: RiskRadar")
+    st.header("RiskRadar")
     st.write("🔬 Built for LabLab AI Hackathon: /execute: AI Genesis")
     demo_mode = st.checkbox("Demo Mode", value=True)
     st.header("🛠 Technologies")
