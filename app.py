@@ -10,15 +10,9 @@ import pandas as pd
 load_dotenv()
 
 # Set page config
-st.set_page_config(
-    page_title="AI Genesis: Aid Finder",
-    layout="wide",
-    page_icon="🛡️",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="AI Genesis: Aid Finder", page_icon="🛡️")
 
-
-# --- 🌟 Demo Data ---
+# --- Demo Data ---
 DEMO_DATA = {
     "hurricane": [
         {"name": "Miami Red Cross", "description": "Offers shelter and meals.", "link": "https://www.redcross.org", "type": "Shelter"},
@@ -38,11 +32,11 @@ try:
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY is missing.")
     groq = Groq(api_key=groq_api_key)
-except Exception as e:
-    st.error(f"Cannot connect to Groq: {str(e)}. Using demo mode.")
+except Exception:
+    st.error("Cannot connect to Groq. Using demo mode.")
     groq = None
 
-# --- 🛠️ Fetch Resources ---
+# --- Fetch Resources ---
 def fetch_resources(query, demo_mode=False):
     if demo_mode or groq is None:
         st.info("Showing sample resources (demo mode).")
@@ -74,11 +68,11 @@ def fetch_resources(query, demo_mode=False):
             }
             for i, r in enumerate(results) if r.get("title")
         ]
-    except Exception as e:
-        st.error(f"Error fetching resources: {str(e)}. Showing sample resources.")
+    except Exception:
+        st.error("Error fetching resources. Showing sample resources.")
         return DEMO_DATA["hurricane"]
 
-# --- 🤖 Generate Aid Tips ---
+# --- Generate Aid Tips ---
 def generate_aid_tips(query, resources):
     tips = []
     
@@ -88,7 +82,7 @@ def generate_aid_tips(query, resources):
     try:
         for resource in resources:
             prompt = f"""
-            You are a disaster relief assistant. For the disaster '{query}' and resource '{resource['name']}' ({resource['type']}), provide a short aid tip (1 sentence). Example: "Contact Miami Red Cross for safe shelter and meals."
+            For the disaster '{query}' and resource '{resource['name']}' ({resource['type']}), provide a short aid tip (1 sentence). Example: "Contact Miami Red Cross for safe shelter and meals."
             """
             try:
                 response = groq.chat.completions.create(
@@ -105,32 +99,24 @@ def generate_aid_tips(query, resources):
     
     return tips
 
-# --- 🎨 Streamlit UI ---
+# --- Streamlit UI ---
+st.title("AI Genesis: Aid Finder")
+st.write("Locate disaster relief resources and get practical aid tips.")
+
 with st.sidebar:
-    st.markdown("<h1 style='color: white;'>AI Genesis: Aid Finder</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #d1d5db; font-size: 14px;'>LabLab AI Hackathon</p>", unsafe_allow_html=True)
-    st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
+    st.header("AI Genesis: Aid Finder")
+    st.write("LabLab AI Hackathon")
     demo_mode = st.checkbox("Demo Mode", value=True)
-    st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color: white;'>Technologies</h3>", unsafe_allow_html=True)
-    st.markdown("- Groq Llama3-70B")
-    st.markdown("- SerpAPI")
-    st.markdown("- Plotly")
-    st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
-    st.markdown("<h3 style='color: white;'>Links</h3>", unsafe_allow_html=True)
-    st.markdown("[Demo](https://your-streamlit-app-url.streamlit.app)")
-    st.markdown("[GitHub](https://github.com/your-username/ai-powered-disaster-response-system)")
-    st.markdown("<hr style='border-color: #ffffff;'>", unsafe_allow_html=True)
-    st.markdown("<p style='color: #d1d5db; font-size: 14px;'>Built for /execute: AI Genesis</p>", unsafe_allow_html=True)
+    st.header("Technologies")
+    st.write("- Groq Llama3-70B")
+    st.write("- SerpAPI")
+    st.write("- Plotly")
+    st.header("Links")
+    st.write("[Demo](https://your-streamlit-app-url.streamlit.app)")
+    st.write("[GitHub](https://github.com/your-username/ai-powered-disaster-response-system)")
+    st.write("Built for /execute: AI Genesis")
 
-st.markdown("<h1>AI Genesis: Aid Finder</h1>", unsafe_allow_html=True)
-st.markdown("<p>Locate disaster relief resources and get practical aid tips.</p>", unsafe_allow_html=True)
-
-query = st.text_input(
-    "Enter Location and Disaster:", 
-    placeholder="e.g., Miami Hurricane",
-    help="Type a location and disaster type"
-)
+query = st.text_input("Enter Location and Disaster:", placeholder="e.g., Miami Hurricane")
 
 if st.button("Find Resources"):
     if not query:
@@ -161,17 +147,14 @@ if st.button("Find Resources"):
                 color='Type',
                 color_discrete_map={'Shelter': '#28a745', 'Food Bank': '#007bff', 'Aid Agency': '#6c757d'}
             )
-            fig.update_layout(margin=dict(t=50, b=50, l=50, r=50))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
             
             # Resource List
-            st.markdown("<h3>Relief Resources</h3>", unsafe_allow_html=True)
+            st.header("Relief Resources")
             for resource, tip in zip(resources, tips):
-                st.markdown(f"""
-                **{resource['name']}**  
-                *Type*: {resource['type']}  
-                *Description*: {resource.get('description', '')}  
-                *Aid Tip*: {tip}  
-                [Visit Resource]({resource.get('link', 'https://www.fema.gov')})
-                """)
-                st.markdown("---")
+                st.write(f"**{resource['name']}**")
+                st.write(f"*Type*: {resource['type']}")
+                st.write(f"*Description*: {resource.get('description', '')}")
+                st.write(f"*Aid Tip*: {tip}")
+                st.write(f"[Visit Resource]({resource.get('link', 'https://www.fema.gov')})")
+                st.write("---")
