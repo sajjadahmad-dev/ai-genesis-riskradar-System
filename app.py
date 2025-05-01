@@ -73,7 +73,7 @@ def analyze_news(articles, query):
         titles = "; ".join([a['title'] for a in articles])
         prompt = f"""
         Analyze these news titles: "{titles}" for the topic "{query}".
-        Focus on business risks, market threats, or growth opportunities related to the topic, including any disaster-related impacts.
+        Focus on business risks, market threats, or growth opportunities, including disaster-related impacts.
         Provide a 2-3 sentence summary and a short strategy for a startup or investor.
         """
         response = groq.chat.completions.create(
