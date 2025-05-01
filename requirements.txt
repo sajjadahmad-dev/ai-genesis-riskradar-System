@@ -1,7 +1,6 @@
-streamlit
-serpapi
-groq
-python-dotenv
-folium
-streamlit-folium
-timeout-decorator
+streamlit==1.38.0
+serpapi==0.1.5
+groq==0.11.0
+plotly==5.24.1
+python-dotenv==1.0.1
+pandas==2.2.3
