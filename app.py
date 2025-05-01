@@ -1,5 +1,5 @@
 import streamlit as st
-from serpapi import GoogleSearch
+import serpapi
 from groq import Groq
 import os
 from dotenv import load_dotenv
@@ -14,11 +14,11 @@ st.set_page_config(page_title="AI Genesis: RiskRadar", page_icon="📡")
 
 # --- Demo Data ---
 DEMO_DATA = [
-    {"title": "AI Healthcare Startup Raises $100M", "source": "TechCrunch", "link": "https://techcrunch.com"},
-    {"title": "Regulatory Challenges for AI in Medicine", "source": "Reuters", "link": "https://reuters.com"},
-    {"title": "New AI Diagnostic Tool Approved", "source": "Bloomberg", "link": "https://bloomberg.com"},
-    {"title": "Data Privacy Concerns in AI Health", "source": "Forbes", "link": "https://forbes.com"},
-    {"title": "AI Health Market to Grow 20%", "source": "CNBC", "link": "https://cnbc.com"}
+    {"title": "Hurricane Disrupts Florida Supply Chains", "source": "Bloomberg", "link": "https://bloomberg.com"},
+    {"title": "Insurance Costs Rise Post-Hurricane", "source": "Reuters", "link": "https://reuters.com"},
+    {"title": "Florida Retail Faces Recovery Challenges", "source": "Forbes", "link": "https://forbes.com"},
+    {"title": "Construction Boom Expected After Storm", "source": "CNBC", "link": "https://cnbc.com"},
+    {"title": "Energy Sector Braces for Hurricane Impact", "source": "TechCrunch", "link": "https://techcrunch.com"}
 ]
 
 # Initialize Groq
@@ -27,8 +27,8 @@ try:
     if not groq_api_key:
         raise ValueError("GROQ_API_KEY is missing.")
     groq = Groq(api_key=groq_api_key)
-except Exception:
-    st.error("Cannot connect to Groq. Using demo mode.")
+except Exception as e:
+    st.error(f"Failed to connect to Groq: {str(e)}. Using demo mode.")
     groq = None
 
 # --- Fetch News ---
@@ -41,16 +41,13 @@ def fetch_news(query, demo_mode=False):
         serpapi_key = st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", ""))
         if not serpapi_key:
             raise ValueError("SERPAPI_KEY is missing.")
-        
-        params = {
-            "q": query,
+        results = serpapi.search({
+            "q": f"{query} business impact",
             "api_key": serpapi_key,
             "engine": "google",
             "num": 5
-        }
-        search = GoogleSearch(params)
-        results = search.get_dict().get('organic_results', [])[:5]
-
+        }).get('organic_results', [])[:5]
+        
         if not results:
             st.warning("No news found. Showing sample news.")
             return DEMO_DATA
@@ -63,8 +60,8 @@ def fetch_news(query, demo_mode=False):
             }
             for r in results if r.get("title")
         ]
-    except Exception:
-        st.error("Error fetching news. Showing sample news.")
+    except Exception as e:
+        st.error(f"Error fetching news: {str(e)}. Showing sample news.")
         return DEMO_DATA
 
 # --- Analyze Risks/Opportunities ---
@@ -76,8 +73,8 @@ def analyze_news(articles, query):
         titles = "; ".join([a['title'] for a in articles])
         prompt = f"""
         Analyze these news titles: "{titles}" for the topic "{query}".
-        Summarize business risks, market threats, or growth opportunities in 2-3 sentences.
-        Provide a short strategy for a startup or investor.
+        Focus on business risks, market threats, or growth opportunities related to the topic, including any disaster-related impacts.
+        Provide a 2-3 sentence summary and a short strategy for a startup or investor.
         """
         response = groq.chat.completions.create(
             model="llama3-70b-8192",
@@ -86,7 +83,8 @@ def analyze_news(articles, query):
             timeout=10
         ).choices[0].message.content.strip()
         return response
-    except Exception:
+    except Exception as e:
+        st.error(f"Analysis failed: {str(e)}. Using default response.")
         return "Contact news sources for risk and opportunity insights."
 
 # --- Streamlit UI ---
@@ -106,7 +104,7 @@ with st.sidebar:
     st.write("[GitHub](https://github.com/your-username/ai-powered-disaster-response-system)")
     st.write("Built for /execute: AI Genesis")
 
-query = st.text_input("Enter a business topic:", placeholder="e.g., AI in Healthcare")
+query = st.text_input("Enter a business topic:", placeholder="e.g., Hurricane Florida Business Impact")
 
 if st.button("Analyze"):
     if not query:
