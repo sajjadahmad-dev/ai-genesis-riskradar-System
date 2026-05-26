@@ -1,4 +1,4 @@
-# AI-Powered-Disaster-Response-System# 🚀 RiskRadar AI
+# 🚀 RiskRadar AI
 
 > AI-powered business risk intelligence platform using **LLMs**, sentiment analysis, and real-time news monitoring.
 
