@@ -139,9 +139,3 @@ Hurricane Florida
 
 **Sajjad Ahmad**  
 AI Engineer | LLM Applications | Intelligent Systems
-
----
-
-## 📜 License
-
-MIT License
